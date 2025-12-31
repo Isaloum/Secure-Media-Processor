@@ -9,7 +9,14 @@ from typing import Optional
 from src.config import settings
 from src.encryption import MediaEncryptor
 from src.cloud_storage import CloudStorageManager
-from src.gpu_processor import GPUMediaProcessor
+
+# Make GPU processor optional for macOS compatibility
+try:
+    from src.gpu_processor import GPUMediaProcessor
+    GPU_AVAILABLE = True
+except ImportError:
+    GPU_AVAILABLE = False
+    GPUMediaProcessor = None
 
 # Initialize colorama
 init(autoreset=True)
@@ -159,6 +166,11 @@ def download(remote_key: str, local_file: str, bucket: Optional[str], verify: bo
 @click.option('--gpu/--no-gpu', default=True, help='Use GPU acceleration')
 def resize(input_file: str, output_file: str, width: int, height: int, gpu: bool):
     """Resize an image using GPU acceleration."""
+    if not GPU_AVAILABLE:
+        click.echo(f"{Fore.YELLOW}⚠️  GPU processing not available (PyTorch not installed){Style.RESET_ALL}")
+        click.echo(f"{Fore.YELLOW}Install PyTorch to enable GPU features: pip install torch torchvision{Style.RESET_ALL}")
+        raise click.Abort()
+    
     click.echo(f"{Fore.CYAN}🖼️  Resizing image...{Style.RESET_ALL}")
     
     try:
@@ -190,6 +202,11 @@ def resize(input_file: str, output_file: str, width: int, height: int, gpu: bool
 @click.option('--gpu/--no-gpu', default=True, help='Use GPU acceleration')
 def filter_image(input_file: str, output_file: str, filter: str, intensity: float, gpu: bool):
     """Apply filters to an image."""
+    if not GPU_AVAILABLE:
+        click.echo(f"{Fore.YELLOW}⚠️  GPU processing not available (PyTorch not installed){Style.RESET_ALL}")
+        click.echo(f"{Fore.YELLOW}Install PyTorch to enable GPU features: pip install torch torchvision{Style.RESET_ALL}")
+        raise click.Abort()
+    
     click.echo(f"{Fore.CYAN}🎨 Applying filter...{Style.RESET_ALL}")
     
     try:
@@ -217,6 +234,13 @@ def filter_image(input_file: str, output_file: str, filter: str, intensity: floa
 def info():
     """Display system and GPU information."""
     click.echo(f"{Fore.CYAN}📊 System Information{Style.RESET_ALL}\n")
+    
+    if not GPU_AVAILABLE:
+        click.echo(f"{Fore.YELLOW}GPU Processing:{Style.RESET_ALL} Not available (PyTorch not installed)")
+        click.echo(f"{Fore.YELLOW}Device:{Style.RESET_ALL} CPU only")
+        click.echo(f"\n{Fore.CYAN}To enable GPU features:{Style.RESET_ALL}")
+        click.echo(f"  pip install torch torchvision")
+        return
     
     processor = GPUMediaProcessor()
     device_info = processor.get_device_info()
