@@ -15,29 +15,48 @@
 ## 📋 Requirements
 
 - Python 3.8+
-- NVIDIA GPU with CUDA support (optional, will fall back to CPU)
+- NVIDIA GPU with CUDA support (optional - GPU features require PyTorch)
 - AWS account for cloud storage (optional)
 
 ## 🚀 Installation
 
-1. Clone the repository:
+### Basic Installation (Core Features Only)
+
+For encryption, decryption, and cloud storage without GPU features:
+
 ```bash
+# Clone the repository
 git clone https://github.com/Isaloum/Secure-Media-Processor.git
 cd Secure-Media-Processor
-```
 
-2. Create a virtual environment:
-```bash
+# Create a virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install core dependencies only
+pip install -r requirements-core.txt
 ```
 
-3. Install dependencies:
+### Full Installation (With GPU Support)
+
+For all features including GPU-accelerated image and video processing:
+
 ```bash
+# Clone the repository
+git clone https://github.com/Isaloum/Secure-Media-Processor.git
+cd Secure-Media-Processor
+
+# Create a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install all dependencies including PyTorch
 pip install -r requirements.txt
 ```
 
-4. Configure environment variables:
+### Configuration
+
+Configure environment variables:
 ```bash
 cp .env.example .env
 # Edit .env with your cloud storage credentials
