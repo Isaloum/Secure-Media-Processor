@@ -3,10 +3,22 @@
 import pytest
 from pathlib import Path
 import tempfile
-import numpy as np
-from PIL import Image
-import torch
-from src.gpu_processor import GPUMediaProcessor
+
+# Try to import GPU dependencies
+try:
+    import numpy as np
+    import torch
+    from PIL import Image
+    from src.gpu_processor import GPUMediaProcessor
+    GPU_DEPS_AVAILABLE = True
+except ImportError:
+    GPU_DEPS_AVAILABLE = False
+
+# Skip all tests in this module if GPU dependencies aren't available
+pytestmark = pytest.mark.skipif(
+    not GPU_DEPS_AVAILABLE,
+    reason="GPU dependencies (PyTorch, numpy, Pillow) not installed"
+)
 
 
 @pytest.fixture
