@@ -44,3 +44,11 @@ Would you be willing to contribute to implementing this feature?
 - [ ] Yes, with guidance
 - [ ] No, but I can test it
 - [ ] No, just suggesting
+
+## 🏷️ Suggested Labels
+Please select any that apply (maintainers will add these):
+- [ ] `good first issue` - This would be a great starter task for new contributors
+- [ ] `help wanted` - Community contributions especially welcome
+- [ ] `documentation` - Requires documentation updates
+- [ ] `connector` - Related to cloud storage connectors
+- [ ] `security` - Security-related feature

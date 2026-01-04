@@ -42,3 +42,11 @@ Add any other context about the problem here.
 
 ## ✔️ Possible Solution
 If you have ideas on how to fix this, please share them here.
+
+## 🏷️ Suggested Labels
+Please select any that apply (maintainers will add these):
+- [ ] `good first issue` - This would be a great starter bug for new contributors
+- [ ] `help wanted` - Community contributions especially welcome
+- [ ] `critical` - Critical bug that needs immediate attention
+- [ ] `connector` - Related to cloud storage connectors
+- [ ] `security` - Security vulnerability (please also review SECURITY.md)

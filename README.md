@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Security: AES-256-GCM](https://img.shields.io/badge/security-AES--256--GCM-green.svg)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
+[![CI](https://github.com/Isaloum/Secure-Media-Processor/workflows/Python%20CI/badge.svg)](https://github.com/Isaloum/Secure-Media-Processor/actions)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](https://github.com/Isaloum/Secure-Media-Processor/actions)
 
 *Privacy-first • GPU-accelerated • Cloud-ready • Production-tested*
 
@@ -82,11 +84,39 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. **Configure credentials**:
+4. **Configure credentials** (Required for cloud storage):
 ```bash
 cp .env.example .env
 # Edit .env with your cloud storage credentials
 ```
+
+**Important:** Always use environment variables for credentials. Never hardcode sensitive information in your code. The `.env` file is already included in `.gitignore` to prevent accidental commits.
+
+```bash
+# Example .env configuration
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_BUCKET_NAME=your-bucket-name
+
+GOOGLE_DRIVE_FOLDER_ID=your_drive_folder_id
+GCP_CREDENTIALS_PATH=path/to/credentials.json
+
+DROPBOX_ACCESS_TOKEN=your_dropbox_access_token
+```
+
+5. **Set up logging** (Optional):
+```python
+from logging_config import setup_logging
+import logging
+
+# Development: detailed console + file logging
+setup_logging(log_level=logging.DEBUG, log_file='logs/app.log')
+
+# Production: warnings/errors only
+setup_logging(log_level=logging.WARNING, log_file='/var/log/app.log')
+```
+
+See `logging_config.py` for more configuration options.
 
 ### Basic Usage
 
@@ -203,6 +233,9 @@ manager.sync_file_across_connectors(
 - ✅ Multi-cloud connectors (S3, Google Drive, Dropbox)
 - ✅ GPU-accelerated image processing
 - ✅ Comprehensive CLI interface
+- ✅ Automated testing with pytest
+- ✅ GitHub Actions CI/CD pipeline
+- ✅ Comprehensive logging system
 
 ### Upcoming Features
 - 🔲 **Video Processing**: GPU-accelerated video encoding/transcoding
@@ -212,9 +245,54 @@ manager.sync_file_across_connectors(
 - 🔲 **Automated Backups**: Scheduled backup across multiple clouds
 - 🔲 **File Versioning**: Track and restore previous file versions
 - 🔲 **Compression**: Intelligent compression before encryption
-- 🔲 **CI/CD Pipeline**: Automated testing and deployment
 - 🔲 **Docker Support**: Containerized deployment
 - 🔲 **API Server**: RESTful API for programmatic access
+
+## 🧪 Testing & Development
+
+### Running Tests
+
+The project includes comprehensive test coverage for all connectors and core functionality.
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ -v --cov=src --cov-report=html
+
+# Run specific test file
+pytest tests/test_s3_connector.py -v
+
+# Run tests matching a pattern
+pytest tests/ -k "connector" -v
+```
+
+### Linting and Code Quality
+
+```bash
+# Install linting tools
+pip install flake8 black isort
+
+# Check code style
+flake8 src/ tests/
+
+# Format code
+black src/ tests/
+
+# Sort imports
+isort src/ tests/
+```
+
+### Contributing Tests
+
+When contributing new features:
+1. Write tests for all new functionality
+2. Ensure all tests pass before submitting PR
+3. Aim for >80% code coverage
+4. Mock external dependencies (cloud APIs, etc.)
+
+See existing tests in the `tests/` directory for examples.
 
 ## 🤝 Contributing
 
