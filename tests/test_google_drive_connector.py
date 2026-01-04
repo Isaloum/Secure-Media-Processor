@@ -6,6 +6,24 @@ from unittest.mock import Mock, MagicMock, patch, call, mock_open
 from datetime import datetime
 import tempfile
 import io
+import sys
+
+
+# Mock Google API modules before importing the connector
+mock_service_account = MagicMock()
+mock_service_account.Credentials = MagicMock()
+mock_build = MagicMock()
+mock_media = MagicMock()
+mock_google_auth = MagicMock()
+
+sys.modules['google'] = MagicMock()
+sys.modules['google.oauth2'] = MagicMock()
+sys.modules['google.oauth2.service_account'] = mock_service_account
+sys.modules['google.auth'] = mock_google_auth
+sys.modules['google.auth.exceptions'] = MagicMock()
+sys.modules['googleapiclient'] = MagicMock()
+sys.modules['googleapiclient.discovery'] = mock_build
+sys.modules['googleapiclient.http'] = mock_media
 
 from src.connectors.google_drive_connector import GoogleDriveConnector
 
@@ -34,16 +52,7 @@ def credentials_file(temp_dir):
 
 
 @pytest.fixture
-def mock_google_modules():
-    """Mock Google API modules."""
-    with patch('src.connectors.google_drive_connector.GOOGLE_AVAILABLE', True):
-        with patch('src.connectors.google_drive_connector.service_account') as mock_sa:
-            with patch('src.connectors.google_drive_connector.build') as mock_build:
-                yield {'service_account': mock_sa, 'build': mock_build}
-
-
-@pytest.fixture
-def connector(mock_google_modules, credentials_file):
+def connector(credentials_file):
     """Create a GoogleDriveConnector instance with mocked Google APIs."""
     return GoogleDriveConnector(
         credentials_path=credentials_file,
@@ -54,7 +63,7 @@ def connector(mock_google_modules, credentials_file):
 class TestGoogleDriveConnectorInit:
     """Test initialization of GoogleDriveConnector."""
     
-    def test_init_with_all_parameters(self, mock_google_modules, credentials_file):
+    def test_init_with_all_parameters(self, credentials_file):
         """Test connector initialization with all parameters."""
         connector = GoogleDriveConnector(
             credentials_path=credentials_file,
@@ -69,7 +78,7 @@ class TestGoogleDriveConnectorInit:
         assert connector.credentials is None
         assert not connector.is_connected()
     
-    def test_init_with_defaults(self, mock_google_modules, credentials_file):
+    def test_init_with_defaults(self, credentials_file):
         """Test connector initialization with default parameters."""
         connector = GoogleDriveConnector(credentials_path=credentials_file)
         
@@ -86,13 +95,13 @@ class TestGoogleDriveConnectorInit:
 class TestGoogleDriveConnectorConnection:
     """Test connection and disconnection."""
     
-    def test_connect_success(self, connector, mock_google_modules, credentials_file):
+    def test_connect_success(self, connector, credentials_file):
         """Test successful connection to Google Drive."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         mock_service.about().get().execute.return_value = {'user': {'emailAddress': 'test@example.com'}}
         
         # Connect
@@ -104,13 +113,13 @@ class TestGoogleDriveConnectorConnection:
         assert connector.service == mock_service
         
         # Verify calls
-        mock_google_modules['service_account'].Credentials.from_service_account_file.assert_called_once_with(
+        mock_service_account.Credentials.from_service_account_file.assert_called_once_with(
             str(credentials_file),
             scopes=['https://www.googleapis.com/auth/drive']
         )
-        mock_google_modules['build'].assert_called_once_with('drive', 'v3', credentials=mock_creds)
+        mock_build.assert_called_once_with('drive', 'v3', credentials=mock_creds)
     
-    def test_connect_missing_credentials_file(self, mock_google_modules):
+    def test_connect_missing_credentials_file(self):
         """Test connection failure when credentials file doesn't exist."""
         connector = GoogleDriveConnector(credentials_path='/nonexistent/creds.json')
         
@@ -119,10 +128,10 @@ class TestGoogleDriveConnectorConnection:
         assert result is False
         assert not connector.is_connected()
     
-    def test_connect_auth_error(self, connector, mock_google_modules, credentials_file):
+    def test_connect_auth_error(self, connector, credentials_file):
         """Test connection failure due to authentication error."""
         # Setup mock to raise error
-        mock_google_modules['service_account'].Credentials.from_service_account_file.side_effect = Exception("Auth failed")
+        mock_service_account.Credentials.from_service_account_file.side_effect = Exception("Auth failed")
         
         # Connect
         result = connector.connect()
@@ -130,13 +139,13 @@ class TestGoogleDriveConnectorConnection:
         assert result is False
         assert not connector.is_connected()
     
-    def test_disconnect(self, connector, mock_google_modules, credentials_file):
+    def test_disconnect(self, connector, credentials_file):
         """Test disconnection from Google Drive."""
         # First connect
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Then disconnect
@@ -151,13 +160,13 @@ class TestGoogleDriveConnectorConnection:
 class TestGoogleDriveConnectorUpload:
     """Test file upload operations."""
     
-    def test_upload_file_success(self, connector, sample_file, mock_google_modules, credentials_file):
+    def test_upload_file_success(self, connector, sample_file, credentials_file):
         """Test successful file upload."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock upload result
@@ -169,7 +178,7 @@ class TestGoogleDriveConnectorUpload:
         }
         
         # Mock MediaFileUpload
-        with patch('src.connectors.google_drive_connector.MediaFileUpload') as mock_media:
+        with patch('googleapiclient.http.MediaFileUpload') as mock_media:
             # Upload file
             result = connector.upload_file(sample_file, 'remote_file.txt')
         
@@ -192,13 +201,13 @@ class TestGoogleDriveConnectorUpload:
         assert result['success'] is False
         assert 'Not connected' in result['error']
     
-    def test_upload_file_not_found(self, connector, temp_dir, mock_google_modules, credentials_file):
+    def test_upload_file_not_found(self, connector, temp_dir, credentials_file):
         """Test upload with non-existent file."""
         # Connect first
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Try to upload non-existent file
@@ -208,13 +217,13 @@ class TestGoogleDriveConnectorUpload:
         assert result['success'] is False
         assert 'File not found' in result['error']
     
-    def test_upload_file_with_metadata(self, connector, sample_file, mock_google_modules, credentials_file):
+    def test_upload_file_with_metadata(self, connector, sample_file, credentials_file):
         """Test upload with custom metadata."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock upload result
@@ -225,7 +234,7 @@ class TestGoogleDriveConnectorUpload:
         }
         
         # Upload with metadata
-        with patch('src.connectors.google_drive_connector.MediaFileUpload'):
+        with patch('googleapiclient.http.MediaFileUpload'):
             metadata = {'user': 'test_user', 'purpose': 'testing'}
             result = connector.upload_file(sample_file, 'file.txt', metadata=metadata)
         
@@ -236,15 +245,15 @@ class TestGoogleDriveConnectorUpload:
         assert 'user' in call_kwargs['body']['properties']
         assert call_kwargs['body']['properties']['user'] == 'test_user'
     
-    def test_upload_file_without_folder(self, mock_google_modules, credentials_file, sample_file):
+    def test_upload_file_without_folder(self, credentials_file, sample_file):
         """Test upload without specifying folder ID."""
         connector = GoogleDriveConnector(credentials_path=credentials_file)
         
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock upload result
@@ -255,7 +264,7 @@ class TestGoogleDriveConnectorUpload:
         }
         
         # Upload file
-        with patch('src.connectors.google_drive_connector.MediaFileUpload'):
+        with patch('googleapiclient.http.MediaFileUpload'):
             result = connector.upload_file(sample_file, 'file.txt')
         
         assert result['success'] is True
@@ -264,17 +273,17 @@ class TestGoogleDriveConnectorUpload:
         call_kwargs = mock_service.files().create.call_args[1]
         assert 'parents' not in call_kwargs['body']
     
-    def test_upload_file_api_error(self, connector, sample_file, mock_google_modules, credentials_file):
+    def test_upload_file_api_error(self, connector, sample_file, credentials_file):
         """Test upload failure due to API error."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock API error
-        with patch('src.connectors.google_drive_connector.MediaFileUpload'):
+        with patch('googleapiclient.http.MediaFileUpload'):
             mock_service.files().create().execute.side_effect = Exception("Upload failed")
             
             # Upload file
@@ -287,13 +296,13 @@ class TestGoogleDriveConnectorUpload:
 class TestGoogleDriveConnectorDownload:
     """Test file download operations."""
     
-    def test_download_file_success(self, connector, temp_dir, mock_google_modules, credentials_file):
+    def test_download_file_success(self, connector, temp_dir, credentials_file):
         """Test successful file download."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock file search
@@ -312,12 +321,12 @@ class TestGoogleDriveConnectorDownload:
         mock_service.files().get_media.return_value = mock_request
         
         # Create a mock downloader
-        with patch('src.connectors.google_drive_connector.MediaIoBaseDownload') as mock_downloader_class:
+        with patch('googleapiclient.http.MediaIoBaseDownload') as mock_downloader_class:
             mock_downloader = MagicMock()
             mock_downloader.next_chunk.side_effect = [(None, False), (None, True)]
             mock_downloader_class.return_value = mock_downloader
             
-            with patch('src.connectors.google_drive_connector.io.FileIO') as mock_fileio:
+            with patch('io.FileIO') as mock_fileio:
                 mock_fh = MagicMock()
                 mock_fileio.return_value = mock_fh
                 
@@ -339,13 +348,13 @@ class TestGoogleDriveConnectorDownload:
         assert result['success'] is False
         assert 'Not connected' in result['error']
     
-    def test_download_file_not_found(self, connector, temp_dir, mock_google_modules, credentials_file):
+    def test_download_file_not_found(self, connector, temp_dir, credentials_file):
         """Test download when file doesn't exist."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id to return None
@@ -357,13 +366,13 @@ class TestGoogleDriveConnectorDownload:
         assert result['success'] is False
         assert 'File not found' in result['error']
     
-    def test_download_file_with_checksum_verification(self, connector, temp_dir, sample_file, mock_google_modules, credentials_file):
+    def test_download_file_with_checksum_verification(self, connector, temp_dir, sample_file, credentials_file):
         """Test download with checksum verification."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Calculate real checksum
@@ -384,12 +393,12 @@ class TestGoogleDriveConnectorDownload:
         mock_request = MagicMock()
         mock_service.files().get_media.return_value = mock_request
         
-        with patch('src.connectors.google_drive_connector.MediaIoBaseDownload') as mock_downloader_class:
+        with patch('googleapiclient.http.MediaIoBaseDownload') as mock_downloader_class:
             mock_downloader = MagicMock()
             mock_downloader.next_chunk.side_effect = [(None, False), (None, True)]
             mock_downloader_class.return_value = mock_downloader
             
-            with patch('src.connectors.google_drive_connector.io.FileIO') as mock_fileio:
+            with patch('io.FileIO') as mock_fileio:
                 # Write the actual file content
                 local_path = temp_dir / "downloaded.txt"
                 local_path.write_bytes(sample_file.read_bytes())
@@ -400,13 +409,13 @@ class TestGoogleDriveConnectorDownload:
         assert result['success'] is True
         assert result['checksum_verified'] is True
     
-    def test_download_file_checksum_mismatch(self, connector, temp_dir, mock_google_modules, credentials_file):
+    def test_download_file_checksum_mismatch(self, connector, temp_dir, credentials_file):
         """Test download with checksum verification failure."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock file search
@@ -424,12 +433,12 @@ class TestGoogleDriveConnectorDownload:
         mock_request = MagicMock()
         mock_service.files().get_media.return_value = mock_request
         
-        with patch('src.connectors.google_drive_connector.MediaIoBaseDownload') as mock_downloader_class:
+        with patch('googleapiclient.http.MediaIoBaseDownload') as mock_downloader_class:
             mock_downloader = MagicMock()
             mock_downloader.next_chunk.side_effect = [(None, False), (None, True)]
             mock_downloader_class.return_value = mock_downloader
             
-            with patch('src.connectors.google_drive_connector.io.FileIO'):
+            with patch('io.FileIO'):
                 # Write file
                 local_path = temp_dir / "downloaded.txt"
                 local_path.write_text("Downloaded content")
@@ -446,13 +455,13 @@ class TestGoogleDriveConnectorDownload:
 class TestGoogleDriveConnectorDelete:
     """Test file deletion operations."""
     
-    def test_delete_file_success(self, connector, mock_google_modules, credentials_file):
+    def test_delete_file_success(self, connector, credentials_file):
         """Test successful file deletion."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id to return file ID
@@ -471,13 +480,13 @@ class TestGoogleDriveConnectorDelete:
         assert result['success'] is False
         assert 'Not connected' in result['error']
     
-    def test_delete_file_not_found(self, connector, mock_google_modules, credentials_file):
+    def test_delete_file_not_found(self, connector, credentials_file):
         """Test deletion when file doesn't exist."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id to return None
@@ -488,13 +497,13 @@ class TestGoogleDriveConnectorDelete:
         assert result['success'] is False
         assert 'File not found' in result['error']
     
-    def test_delete_file_api_error(self, connector, mock_google_modules, credentials_file):
+    def test_delete_file_api_error(self, connector, credentials_file):
         """Test deletion failure due to API error."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id and deletion error
@@ -511,13 +520,13 @@ class TestGoogleDriveConnectorDelete:
 class TestGoogleDriveConnectorList:
     """Test file listing operations."""
     
-    def test_list_files_success(self, connector, mock_google_modules, credentials_file):
+    def test_list_files_success(self, connector, credentials_file):
         """Test successful file listing."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock list response
@@ -550,13 +559,13 @@ class TestGoogleDriveConnectorList:
         assert files[0]['checksum'] == 'abc123'
         assert files[1]['path'] == 'file2.txt'
     
-    def test_list_files_with_prefix(self, connector, mock_google_modules, credentials_file):
+    def test_list_files_with_prefix(self, connector, credentials_file):
         """Test listing with name prefix filter."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock empty response
@@ -576,13 +585,13 @@ class TestGoogleDriveConnectorList:
         
         assert files == []
     
-    def test_list_files_api_error(self, connector, mock_google_modules, credentials_file):
+    def test_list_files_api_error(self, connector, credentials_file):
         """Test listing failure due to API error."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock API error
@@ -597,13 +606,13 @@ class TestGoogleDriveConnectorList:
 class TestGoogleDriveConnectorMetadata:
     """Test file metadata operations."""
     
-    def test_get_file_metadata_success(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_metadata_success(self, connector, credentials_file):
         """Test successful metadata retrieval."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id and metadata
@@ -632,13 +641,13 @@ class TestGoogleDriveConnectorMetadata:
         assert result['success'] is False
         assert 'Not connected' in result['error']
     
-    def test_get_file_metadata_not_found(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_metadata_not_found(self, connector, credentials_file):
         """Test metadata for non-existent file."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock _get_file_id to return None
@@ -653,13 +662,13 @@ class TestGoogleDriveConnectorMetadata:
 class TestGoogleDriveConnectorHelpers:
     """Test helper methods."""
     
-    def test_get_file_id_by_id(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_id_by_id(self, connector, credentials_file):
         """Test getting file ID when input is already an ID."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock successful get by ID
@@ -670,13 +679,13 @@ class TestGoogleDriveConnectorHelpers:
         
         assert file_id == 'file123'
     
-    def test_get_file_id_by_name(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_id_by_name(self, connector, credentials_file):
         """Test getting file ID by name search."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock failed get by ID, successful search by name
@@ -690,13 +699,13 @@ class TestGoogleDriveConnectorHelpers:
         
         assert file_id == 'found123'
     
-    def test_get_file_id_not_found(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_id_not_found(self, connector, credentials_file):
         """Test getting file ID when file doesn't exist."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock failed get by ID and empty search results
@@ -708,13 +717,13 @@ class TestGoogleDriveConnectorHelpers:
         
         assert file_id is None
     
-    def test_get_file_id_with_folder(self, connector, mock_google_modules, credentials_file):
+    def test_get_file_id_with_folder(self, connector, credentials_file):
         """Test file ID search includes folder filter."""
         # Setup mocks
         mock_creds = MagicMock()
         mock_service = MagicMock()
-        mock_google_modules['service_account'].Credentials.from_service_account_file.return_value = mock_creds
-        mock_google_modules['build'].return_value = mock_service
+        mock_service_account.Credentials.from_service_account_file.return_value = mock_creds
+        mock_build.return_value = mock_service
         connector.connect()
         
         # Mock failed get by ID, successful search with folder
