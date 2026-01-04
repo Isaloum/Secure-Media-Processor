@@ -11,7 +11,6 @@ import logging
 import io
 
 try:
-    from google.cloud import storage as gcs_storage
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
@@ -389,7 +388,7 @@ class GoogleDriveConnector(CloudConnector):
         try:
             self.service.files().get(fileId=name_or_id, fields='id').execute()
             return name_or_id
-        except:
+        except Exception:
             pass
         
         # Search by name
@@ -407,7 +406,7 @@ class GoogleDriveConnector(CloudConnector):
             files = results.get('files', [])
             if files:
                 return files[0]['id']
-        except:
+        except Exception:
             pass
         
         return None
