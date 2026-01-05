@@ -18,7 +18,7 @@ torch==2.1.2
 torchvision==0.16.2
 opencv-python==4.9.0.80
 Pillow==10.2.0
-numpy==1.26.3
+numpy>=1.24.0,<2.0.0
 
 # CLI and utilities
 click==8.1.7
