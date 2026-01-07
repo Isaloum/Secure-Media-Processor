@@ -7,6 +7,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Security: AES-256-GCM](https://img.shields.io/badge/security-AES--256--GCM-green.svg)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
+[![Tests](https://github.com/Isaloum/Secure-Media-Processor/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Isaloum/Secure-Media-Processor/actions/workflows/python-tests.yml)
+[![codecov](https://codecov.io/gh/Isaloum/Secure-Media-Processor/branch/main/graph/badge.svg)](https://codecov.io/gh/Isaloum/Secure-Media-Processor)
 
 *Privacy-first • GPU-accelerated • Cloud-ready • Production-tested*
 
@@ -185,6 +187,83 @@ manager.sync_file_across_connectors(
     source_connector='s3',
     target_connectors=['dropbox', 'gdrive']
 )
+```
+
+## 🧪 Testing & CI/CD
+
+### Test Suite
+
+The project includes comprehensive automated tests for all cloud connectors with 66% overall code coverage:
+
+```bash
+# Run all cloud connector tests
+pytest tests/test_dropbox_connector.py tests/test_s3_connector_new.py tests/test_google_drive_connector_new.py -v
+
+# Run with coverage reporting
+pytest tests/ --cov=src/connectors --cov-report=term-missing
+```
+
+**Coverage Metrics**:
+- S3 Connector: 87%
+- Google Drive Connector: 82%
+- Dropbox Connector: 65%
+- Overall: 66%
+
+### Testing Strategy
+
+All connector tests use **global mocking fixtures** for consistent, isolated testing:
+
+- **Dropbox**: `mock_dbx_global` fixture mocks `dropbox.Dropbox` class
+- **S3**: `mock_s3_client_global` and `mock_s3_resource_global` fixtures mock `boto3.client()` and `boto3.resource()`
+- **Google Drive**: `mock_gdrive_service_global` fixture mocks `googleapiclient.discovery.build()`
+
+This approach ensures:
+- No actual cloud API calls during testing
+- Fast test execution (all 45 tests run in ~1 second)
+- Predictable test behavior without external dependencies
+- Easy debugging with controlled mock responses
+
+### Continuous Integration
+
+Every push and pull request triggers automated testing via GitHub Actions:
+
+**Workflow**: [`.github/workflows/python-tests.yml`](.github/workflows/python-tests.yml)
+
+**Pipeline Steps**:
+1. **Environment Setup**: Python 3.11, install dependencies
+2. **Test Execution**: Run all connector tests with verbose output
+3. **Coverage Analysis**: Generate coverage reports (XML + terminal)
+4. **Coverage Upload**: Publish to Codecov with `connector-tests` flag
+
+**View CI Status**: All workflow runs are visible in the [Actions tab](https://github.com/Isaloum/Secure-Media-Processor/actions)
+
+### Adding New Connector Tests
+
+To add tests for a new connector:
+
+1. Create `tests/test_<connector>_connector.py`
+2. Add a global fixture using `autouse=True` and `scope="function"`
+3. Mock the SDK/API constructor using `monkeypatch.setattr()`
+4. Write tests using the global mock with `reset_mock()` between tests
+5. Update CI workflow to include your test file
+
+Example template:
+```python
+import pytest
+from unittest.mock import MagicMock
+
+@pytest.fixture(autouse=True)
+def mock_sdk_global(monkeypatch):
+    """Global mock for SDK client"""
+    mock = MagicMock()
+    monkeypatch.setattr('sdk_module.Client', lambda *args, **kwargs: mock)
+    yield mock
+    mock.reset_mock()
+
+def test_upload(mock_sdk_global):
+    connector = MyConnector()
+    connector.upload_file('test.txt', 'remote.txt')
+    assert mock_sdk_global.upload.called
 ```
 
 ## 🔒 Security Workflow
