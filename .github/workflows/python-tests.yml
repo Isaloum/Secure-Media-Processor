@@ -21,10 +21,22 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest
+          pip install pytest pytest-cov
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install dropbox boto3 google-api-python-client google-auth-httplib2 google-auth-oauthlib
 
-      - name: Run cloud connector tests
+      - name: Run cloud connector tests with coverage
         run: |
-          pytest tests/test_dropbox_connector.py tests/test_s3_connector_new.py tests/test_google_drive_connector_new.py --maxfail=2 --disable-warnings -v
+          pytest tests/test_dropbox_connector.py tests/test_s3_connector_new.py tests/test_google_drive_connector_new.py \
+            --maxfail=2 --disable-warnings -v \
+            --cov=src/connectors --cov-report=xml --cov-report=term-missing
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: connectors
+          name: connector-tests
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
