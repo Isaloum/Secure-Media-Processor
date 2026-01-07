@@ -1,0 +1,30 @@
+name: Run Cloud Connector Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install dropbox boto3 google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+      - name: Run cloud connector tests
+        run: |
+          pytest tests/test_dropbox_connector.py tests/test_s3_connector_new.py tests/test_google_drive_connector_new.py --maxfail=2 --disable-warnings -v
