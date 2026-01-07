@@ -6,7 +6,7 @@ the CloudConnector interface.
 
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 import boto3
@@ -122,7 +122,7 @@ class S3Connector(CloudConnector):
             # Prepare metadata
             file_metadata = metadata or {}
             file_metadata['checksum'] = checksum
-            file_metadata['upload_time'] = datetime.utcnow().isoformat()
+            file_metadata['upload_time'] = datetime.now(timezone.utc).isoformat()
             file_metadata['original_name'] = file_path.name
             
             # Upload with server-side encryption

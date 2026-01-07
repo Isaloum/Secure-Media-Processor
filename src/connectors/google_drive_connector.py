@@ -6,7 +6,7 @@ the CloudConnector interface.
 
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 import io
 
@@ -136,14 +136,14 @@ class GoogleDriveConnector(CloudConnector):
             # Prepare file metadata
             file_metadata = {
                 'name': remote_path,
-                'description': f'Uploaded: {datetime.utcnow().isoformat()}',
+                'description': f'Uploaded: {datetime.now(timezone.utc).isoformat()}',
                 'properties': metadata or {}
             }
             
             # Add checksum to properties
             file_metadata['properties']['checksum'] = checksum
             file_metadata['properties']['original_name'] = file_path.name
-            file_metadata['properties']['upload_time'] = datetime.utcnow().isoformat()
+            file_metadata['properties']['upload_time'] = datetime.now(timezone.utc).isoformat()
             
             # Set parent folder if specified
             if self.folder_id:
