@@ -1,0 +1,20 @@
+# Code Owners
+# Each line is a file pattern followed by one or more owners.
+# Order is important; the last matching pattern takes the most precedence.
+
+# Default owner for everything in the repo
+* @Isaloum
+
+# Cloud connectors and core infrastructure
+/src/connectors/ @Isaloum
+/src/encryption.py @Isaloum
+/src/config.py @Isaloum
+
+# Testing
+/tests/ @Isaloum
+/.github/workflows/ @Isaloum
+
+# Documentation
+/README.md @Isaloum
+/CONTRIBUTING.md @Isaloum
+/SECURITY.md @Isaloum
