@@ -55,7 +55,16 @@ temp/
 # Testing
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
+
+# Backup and temporary files
+*.backup
+*.bak
+*~
+*.tmp
+*.swp
+*.swo
 
 # OS
 .DS_Store
