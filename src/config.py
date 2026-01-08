@@ -20,10 +20,6 @@ class Settings(BaseSettings):
     gcp_bucket_name: Optional[str] = None
     gcp_credentials_path: Optional[Path] = None
     
-    # Azure Configuration
-    azure_connection_string: Optional[str] = None
-    azure_container_name: Optional[str] = None
-    
     # Encryption
     master_key_path: Path = Field(default=Path("./keys/master.key"))
     encryption_algorithm: str = "AES-256-GCM"

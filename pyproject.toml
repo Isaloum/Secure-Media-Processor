@@ -1,0 +1,182 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secure-media-processor"
+version = "1.0.0"
+description = "Privacy-focused media processing with GPU acceleration and multi-cloud storage integration"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Ihab Saloum", email = "Isaloum@users.noreply.github.com"}
+]
+maintainers = [
+    {name = "Ihab Saloum", email = "Isaloum@users.noreply.github.com"}
+]
+keywords = [
+    "encryption",
+    "aes-256-gcm",
+    "cloud-storage",
+    "aws-s3",
+    "google-drive",
+    "dropbox",
+    "gpu-acceleration",
+    "media-processing",
+    "privacy",
+    "security"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+    "Topic :: System :: Archiving :: Backup",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Video",
+]
+
+dependencies = [
+    "cryptography>=41.0.7",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "boto3>=1.34.0",
+    "google-cloud-storage>=2.14.0",
+    "google-api-python-client>=2.111.0",
+    "google-auth-httplib2>=0.2.0",
+    "google-auth-oauthlib>=1.2.0",
+    "dropbox>=11.36.2",
+    "torch>=2.1.2",
+    "torchvision>=0.16.2",
+    "opencv-python>=4.9.0.80",
+    "Pillow>=10.2.0",
+    "numpy>=1.22,<1.25",
+    "click>=8.1.7",
+    "tqdm>=4.66.1",
+    "colorama>=0.4.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+gpu = [
+    "torch>=2.1.2",
+    "torchvision>=0.16.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Isaloum/Secure-Media-Processor"
+Documentation = "https://github.com/Isaloum/Secure-Media-Processor#readme"
+Repository = "https://github.com/Isaloum/Secure-Media-Processor.git"
+"Bug Tracker" = "https://github.com/Isaloum/Secure-Media-Processor/issues"
+Changelog = "https://github.com/Isaloum/Secure-Media-Processor/releases"
+
+[project.scripts]
+secure-media-processor = "src.cli:cli"
+smp = "src.cli:cli"
+
+[tool.setuptools]
+packages = ["src", "src.connectors"]
+
+[tool.setuptools.package-data]
+src = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--strict-markers",
+    "--disable-warnings",
+    "--cov=src/connectors",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gpu: marks tests requiring GPU hardware",
+    "cloud: marks tests requiring cloud credentials",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "dropbox.*",
+    "boto3.*",
+    "botocore.*",
+    "google.*",
+    "googleapiclient.*",
+    "torch.*",
+    "torchvision.*",
+    "cv2.*",
+]
+ignore_missing_imports = true
