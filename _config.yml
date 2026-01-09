@@ -1,0 +1,8 @@
+theme: jekyll-theme-cayman
+title: Secure Media Processor
+description: Military-grade encryption meets GPU acceleration for your media files
+show_downloads: false
+google_analytics: 
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
