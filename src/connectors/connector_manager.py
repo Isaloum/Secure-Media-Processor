@@ -322,36 +322,83 @@ class ConnectorManager:
             Dictionary with sync results for each target.
         """
         import tempfile
-        
+        import os
+
         source = self.get_connector(source_connector)
         if not source:
             return {'success': False, 'error': f'Source connector {source_connector} not found'}
-        
+
         results = {}
-        
-        # Download from source to temporary file
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-            tmp_path = Path(tmp_file.name)
-        
+
+        # Create secure temporary file with restricted permissions (0600 - owner only)
+        # This prevents other users on shared systems from reading the file
+        fd = None
+        tmp_path = None
+
         try:
+            # Create temp file with secure permissions
+            fd = tempfile.mkstemp(prefix='secure_media_', suffix='.tmp')
+            tmp_path = Path(fd[1])  # fd is (file_descriptor, path) tuple
+
+            # Set restrictive permissions (owner read/write only)
+            os.chmod(tmp_path, 0o600)
+
+            # Close file descriptor as we'll use the path directly
+            os.close(fd[0])
+            fd = None
+
+            # Download from source to temporary file
             download_result = source.download_file(remote_path, tmp_path)
             if not download_result['success']:
                 return {'success': False, 'error': 'Failed to download from source', 'details': download_result}
-            
+
             # Upload to each target
             for target_name in target_connectors:
                 target = self.get_connector(target_name)
                 if not target:
                     results[target_name] = {'success': False, 'error': 'Connector not found'}
                     continue
-                
+
                 upload_result = target.upload_file(tmp_path, remote_path)
                 results[target_name] = upload_result
-        
+
         finally:
-            # Clean up temporary file
-            if tmp_path.exists():
-                tmp_path.unlink()
+            # Secure cleanup: Overwrite file contents before deletion
+            if tmp_path and tmp_path.exists():
+                try:
+                    # Overwrite with zeros before deletion (3-pass secure delete)
+                    file_size = tmp_path.stat().st_size
+                    with open(tmp_path, 'wb') as f:
+                        # Pass 1: Write zeros
+                        f.write(b'\0' * file_size)
+                        f.flush()
+                        os.fsync(f.fileno())
+                        # Pass 2: Write ones
+                        f.seek(0)
+                        f.write(b'\xff' * file_size)
+                        f.flush()
+                        os.fsync(f.fileno())
+                        # Pass 3: Write random data
+                        f.seek(0)
+                        f.write(os.urandom(file_size))
+                        f.flush()
+                        os.fsync(f.fileno())
+                    # Now delete
+                    tmp_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to securely delete temp file: {e}")
+                    # Try regular delete as fallback
+                    try:
+                        tmp_path.unlink()
+                    except:
+                        pass
+
+            # Close file descriptor if still open
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except:
+                    pass
         
         return {
             'success': all(r.get('success', False) for r in results.values()),
