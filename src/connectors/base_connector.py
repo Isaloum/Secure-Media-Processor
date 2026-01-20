@@ -8,23 +8,42 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CloudConnector(ABC):
     """Abstract base class for cloud storage connectors.
-    
+
     All cloud storage implementations (S3, Google Drive, Dropbox, etc.)
     must inherit from this class and implement all abstract methods.
     """
-    
-    def __init__(self, **kwargs):
+
+    def __init__(self, rate_limiter=None, **kwargs):
         """Initialize the cloud connector.
-        
+
         Args:
+            rate_limiter: Optional RateLimiter instance for API throttling.
             **kwargs: Provider-specific configuration parameters.
         """
         self.provider_name = self.__class__.__name__.replace('Connector', '')
         self._connected = False
+        self._rate_limiter = rate_limiter
+
+    def _check_rate_limit(self, operation: str = "operation") -> None:
+        """Check rate limit before performing an operation.
+
+        This method will block until rate limit allows the operation.
+
+        Args:
+            operation: Name of the operation for logging purposes.
+        """
+        if self._rate_limiter:
+            acquired = self._rate_limiter.acquire(tokens=1, blocking=True, timeout=30.0)
+            if not acquired:
+                logger.warning(f"Rate limit timeout for {operation} on {self.provider_name}")
+                raise RuntimeError(f"Rate limit exceeded for {operation}")
     
     @abstractmethod
     def connect(self) -> bool:
