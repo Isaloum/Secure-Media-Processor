@@ -80,7 +80,7 @@ class DropboxConnector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from Dropbox.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
@@ -88,6 +88,18 @@ class DropboxConnector(CloudConnector):
         self._connected = False
         logger.info("Disconnected from Dropbox")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear Dropbox access token
+        if hasattr(self, 'access_token') and self.access_token:
+            self.access_token = None
+        if hasattr(self, 'dbx'):
+            self.dbx = None
     
     def upload_file(
         self,

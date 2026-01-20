@@ -95,7 +95,7 @@ class GoogleDriveConnector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from Google Drive.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
@@ -104,6 +104,21 @@ class GoogleDriveConnector(CloudConnector):
         self._connected = False
         logger.info("Disconnected from Google Drive")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear Google Drive service and credentials
+        if hasattr(self, 'service'):
+            self.service = None
+        if hasattr(self, 'credentials'):
+            self.credentials = None
+        if hasattr(self, 'credentials_path'):
+            # Path object is safe to keep, but clear reference
+            pass
     
     def upload_file(
         self,

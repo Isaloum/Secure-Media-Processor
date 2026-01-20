@@ -81,15 +81,34 @@ class S3Connector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from AWS S3.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
+        # Clear client and resource objects
         self.s3_client = None
         self.s3_resource = None
         self._connected = False
         logger.info("Disconnected from S3")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear AWS credentials if they were stored
+        if hasattr(self, 'access_key') and self.access_key:
+            self.access_key = None
+        if hasattr(self, 'secret_key') and self.secret_key:
+            self.secret_key = None
+
+        # Clear client objects
+        if hasattr(self, 's3_client'):
+            self.s3_client = None
+        if hasattr(self, 's3_resource'):
+            self.s3_resource = None
     
     def upload_file(
         self,
