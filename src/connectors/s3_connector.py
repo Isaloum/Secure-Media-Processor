@@ -109,12 +109,18 @@ class S3Connector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         file_path = Path(file_path)
-        
+
         if not file_path.exists():
             return {'success': False, 'error': f'File not found: {file_path}'}
-        
+
         try:
             # Calculate checksum
             checksum = self._calculate_checksum(file_path)
@@ -173,7 +179,13 @@ class S3Connector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         local_path = Path(local_path)
         
         # Create parent directory if needed
@@ -225,16 +237,22 @@ class S3Connector(CloudConnector):
     
     def delete_file(self, remote_path: str) -> Dict[str, Any]:
         """Delete a file from S3.
-        
+
         Args:
             remote_path: S3 object key.
-            
+
         Returns:
             Dictionary containing deletion result.
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             self.s3_client.delete_object(
                 Bucket=self.bucket_name,
@@ -291,16 +309,22 @@ class S3Connector(CloudConnector):
     
     def get_file_metadata(self, remote_path: str) -> Dict[str, Any]:
         """Get metadata for a file in S3.
-        
+
         Args:
             remote_path: S3 object key.
-            
+
         Returns:
             Dictionary containing file metadata.
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             response = self.s3_client.head_object(
                 Bucket=self.bucket_name,

@@ -108,6 +108,12 @@ class DropboxConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         file_path = Path(file_path)
         
         if not file_path.exists():
@@ -179,6 +185,12 @@ class DropboxConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         local_path = Path(local_path)
         
         # Create parent directory if needed
@@ -232,6 +244,12 @@ class DropboxConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Prepare full remote path
@@ -312,6 +330,12 @@ class DropboxConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Prepare full remote path

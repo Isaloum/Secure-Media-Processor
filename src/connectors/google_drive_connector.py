@@ -124,6 +124,12 @@ class GoogleDriveConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         file_path = Path(file_path)
         
         if not file_path.exists():
@@ -199,6 +205,12 @@ class GoogleDriveConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         local_path = Path(local_path)
         
         # Create parent directory if needed
@@ -268,6 +280,12 @@ class GoogleDriveConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Find file by name or use as ID
@@ -347,6 +365,12 @@ class GoogleDriveConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Find file by name or use as ID

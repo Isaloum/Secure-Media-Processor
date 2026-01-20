@@ -158,19 +158,49 @@ class CloudConnector(ABC):
         """
         return self.provider_name
     
+    def _validate_remote_path(self, remote_path: str) -> None:
+        """Validate remote path to prevent directory traversal attacks.
+
+        This security check prevents malicious paths like '../../../etc/passwd'
+        from being used in cloud operations.
+
+        Args:
+            remote_path: Remote path/key to validate.
+
+        Raises:
+            ValueError: If path contains traversal attempts or invalid characters.
+        """
+        if not remote_path or not isinstance(remote_path, str):
+            raise ValueError("Remote path must be a non-empty string")
+
+        # Normalize path and check for traversal attempts
+        normalized = Path(remote_path).as_posix()
+
+        # Prevent absolute paths and parent directory references
+        if normalized.startswith('/') or normalized.startswith('\\'):
+            raise ValueError(f"Absolute paths not allowed: {remote_path}")
+
+        if '..' in Path(remote_path).parts:
+            raise ValueError(f"Path traversal detected: {remote_path}")
+
+        # Prevent null bytes and other dangerous characters
+        dangerous_chars = ['\0', '\n', '\r']
+        if any(char in remote_path for char in dangerous_chars):
+            raise ValueError(f"Invalid characters in path: {remote_path}")
+
     def _calculate_checksum(self, file_path: Union[str, Path]) -> str:
         """Calculate SHA-256 checksum of a file.
-        
+
         This is a helper method that can be used by all connectors.
-        
+
         Args:
             file_path: Path to the file.
-            
+
         Returns:
             str: Hexadecimal checksum string.
         """
         import hashlib
-        
+
         sha256_hash = hashlib.sha256()
         with open(file_path, 'rb') as f:
             for byte_block in iter(lambda: f.read(4096), b""):
