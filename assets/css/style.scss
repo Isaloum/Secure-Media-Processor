@@ -3,14 +3,30 @@
 
 @import "{{ site.theme }}";
 
+/* Override Cayman theme's default hero section */
 .page-header {
   padding: 50px 20px !important;
 }
 
 .page-header .project-name {
   font-size: 2.2rem !important;
+  margin-bottom: 20px !important;
 }
 
 .page-header .project-tagline {
   font-size: 1.1rem !important;
+  margin-top: 20px !important;
+}
+
+/* Override custom hero div in index.md */
+div[align="center"] h1 {
+  font-size: 2.2em !important;
+}
+
+div[align="center"] > div[style*="padding"] {
+  padding: 50px 20px !important;
+}
+
+div[align="center"] p {
+  font-size: 1.1em !important;
 }
