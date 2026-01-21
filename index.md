@@ -1,24 +1,8 @@
 ---
 layout: default
 title: Secure Media Processor - Privacy-First Media Encryption & Cloud Storage
+description: Military-grade encryption meets GPU acceleration for your media files
 ---
-
-<div align="center" style="padding: 50px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; margin-bottom: 40px;">
-  <h1 style="color: white; font-size: 2.2em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
-    🔒 Secure Media Processor
-  </h1>
-  <p style="color: #f0f0f0; font-size: 1.1em; margin-top: 20px; font-weight: 300;">
-    Military-grade encryption meets GPU acceleration for your media files
-  </p>
-  <p style="margin-top: 30px;">
-    <a href="https://github.com/Isaloum/Secure-Media-Processor" style="display: inline-block; padding: 15px 40px; background: white; color: #667eea; text-decoration: none; border-radius: 30px; font-weight: bold; font-size: 1.1em; box-shadow: 0 4px 15px rgba(0,0,0,0.2); margin: 10px;">
-      View on GitHub →
-    </a>
-    <a href="#get-started" style="display: inline-block; padding: 15px 40px; background: rgba(255,255,255,0.2); color: white; text-decoration: none; border-radius: 30px; font-weight: bold; font-size: 1.1em; border: 2px solid white; margin: 10px;">
-      Get Started
-    </a>
-  </p>
-</div>
 
 <div align="center" style="margin: 40px 0;">
   <img src="https://img.shields.io/github/stars/Isaloum/Secure-Media-Processor?style=for-the-badge&logo=github&color=gold" alt="GitHub Stars">
