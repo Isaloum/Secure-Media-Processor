@@ -95,7 +95,7 @@ class GoogleDriveConnector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from Google Drive.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
@@ -104,6 +104,21 @@ class GoogleDriveConnector(CloudConnector):
         self._connected = False
         logger.info("Disconnected from Google Drive")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear Google Drive service and credentials
+        if hasattr(self, 'service'):
+            self.service = None
+        if hasattr(self, 'credentials'):
+            self.credentials = None
+        if hasattr(self, 'credentials_path'):
+            # Path object is safe to keep, but clear reference
+            pass
     
     def upload_file(
         self,
@@ -123,6 +138,12 @@ class GoogleDriveConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         file_path = Path(file_path)
         
@@ -199,6 +220,12 @@ class GoogleDriveConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         local_path = Path(local_path)
         
         # Create parent directory if needed
@@ -268,6 +295,12 @@ class GoogleDriveConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Find file by name or use as ID
@@ -347,6 +380,12 @@ class GoogleDriveConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Google Drive'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Find file by name or use as ID

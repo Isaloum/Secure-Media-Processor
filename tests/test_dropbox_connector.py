@@ -63,7 +63,10 @@ def test_upload_success():
     from src.connectors.dropbox_connector import DropboxConnector
     connector = DropboxConnector(access_token="fake_token")
     connector.connect()
-    result = connector.upload_file(__file__, "/test/file.txt")
+    # Ensure connector is properly set up with mocks
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+    result = connector.upload_file(__file__, "test/file.txt")
     assert result["success"] is True
     assert "remote_path" in result
     assert mock_dbx_global.files_upload.call_count == 1
@@ -75,11 +78,14 @@ def test_download_file():
     import tempfile
     connector = DropboxConnector(access_token="fake_token")
     connector.connect()
+    # Ensure connector is properly set up with mocks
+    connector._connected = True
+    connector.dbx = mock_dbx_global
     
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmp_path = tmp.name
     
-    result = connector.download_file("/test/file.txt", tmp_path)
+    result = connector.download_file("test/file.txt", tmp_path)
     assert result["success"] is True
     assert "local_path" in result
     assert mock_dbx_global.files_download.call_count == 1
@@ -90,7 +96,7 @@ def test_delete_file():
     from src.connectors.dropbox_connector import DropboxConnector
     connector = DropboxConnector(access_token="fake_token")
     connector.connect()
-    result = connector.delete_file("/test/file.txt")
+    result = connector.delete_file("test/file.txt")
     assert result["success"] is True
     assert mock_dbx_global.files_delete_v2.call_count == 1
 

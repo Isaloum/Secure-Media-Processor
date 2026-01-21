@@ -63,21 +63,29 @@ class GPUMediaProcessor:
         
         # Process image
         resized = transform(image)
-        
+
         # Save image
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         if output_path.suffix.lower() in ['.jpg', '.jpeg']:
             write_jpeg(resized.cpu(), str(output_path), quality=95)
         else:
             write_png(resized.cpu(), str(output_path))
-        
-        return {
+
+        # Store results before cleanup
+        result = {
             'original_size': original_size,
             'new_size': (resized.shape[2], resized.shape[1]),
             'device': str(self.device),
             'output_path': str(output_path)
         }
+
+        # Clear GPU memory to prevent memory leaks
+        del image, resized
+        if self.gpu_enabled:
+            torch.cuda.empty_cache()
+
+        return result
     
     def batch_resize(self,
                      input_paths: List[Union[str, Path]],
@@ -107,16 +115,21 @@ class GPUMediaProcessor:
             
             try:
                 result = self.resize_image(
-                    input_path, 
-                    output_path, 
-                    size, 
+                    input_path,
+                    output_path,
+                    size,
                     maintain_aspect_ratio
                 )
                 processed.append(result)
             except Exception as e:
                 logger.error(f"Failed to process {input_path}: {e}")
                 failed.append({'file': str(input_path), 'error': str(e)})
-        
+
+        # Final GPU memory cleanup after batch processing
+        if self.gpu_enabled:
+            torch.cuda.empty_cache()
+            logger.debug(f"GPU memory freed after batch processing {len(processed)} images")
+
         return {
             'total': len(input_paths),
             'processed': len(processed),

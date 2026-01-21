@@ -1,0 +1,20 @@
+# Include essential documentation
+include README.md
+include LICENSE
+include SECURITY.md
+include CONTRIBUTING.md
+include GETTING_STARTED.md
+
+# Include configuration files
+include pyproject.toml
+include .env.example
+
+# Include all Python files
+recursive-include src *.py
+recursive-include tests *.py
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude __pycache__
+global-exclude *.so
+global-exclude .DS_Store

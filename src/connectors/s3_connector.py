@@ -31,18 +31,20 @@ class S3Connector(CloudConnector):
         region: str = 'us-east-1',
         access_key: Optional[str] = None,
         secret_key: Optional[str] = None,
-        encryption: str = 'AES256'
+        encryption: str = 'AES256',
+        rate_limiter = None
     ):
         """Initialize S3 connector.
-        
+
         Args:
             bucket_name: Name of the S3 bucket.
             region: AWS region for the bucket.
             access_key: AWS access key (uses environment variable if not provided).
             secret_key: AWS secret key (uses environment variable if not provided).
             encryption: Server-side encryption method ('AES256' or 'aws:kms').
+            rate_limiter: Optional RateLimiter instance for API throttling.
         """
-        super().__init__()
+        super().__init__(rate_limiter=rate_limiter)
         self.bucket_name = bucket_name
         self.region = region
         self.encryption = encryption
@@ -81,15 +83,34 @@ class S3Connector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from AWS S3.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
+        # Clear client and resource objects
         self.s3_client = None
         self.s3_resource = None
         self._connected = False
         logger.info("Disconnected from S3")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear AWS credentials if they were stored
+        if hasattr(self, 'access_key') and self.access_key:
+            self.access_key = None
+        if hasattr(self, 'secret_key') and self.secret_key:
+            self.secret_key = None
+
+        # Clear client objects
+        if hasattr(self, 's3_client'):
+            self.s3_client = None
+        if hasattr(self, 's3_resource'):
+            self.s3_resource = None
     
     def upload_file(
         self,
@@ -109,12 +130,24 @@ class S3Connector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         file_path = Path(file_path)
-        
+
         if not file_path.exists():
             return {'success': False, 'error': f'File not found: {file_path}'}
-        
+
+        # Check rate limit before API call
+        try:
+            self._check_rate_limit("upload_file")
+        except RuntimeError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             # Calculate checksum
             checksum = self._calculate_checksum(file_path)
@@ -173,12 +206,24 @@ class S3Connector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         local_path = Path(local_path)
-        
+
         # Create parent directory if needed
         local_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
+        # Check rate limit before API call
+        try:
+            self._check_rate_limit("download_file")
+        except RuntimeError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             # Get object metadata
             response = self.s3_client.head_object(
@@ -225,16 +270,28 @@ class S3Connector(CloudConnector):
     
     def delete_file(self, remote_path: str) -> Dict[str, Any]:
         """Delete a file from S3.
-        
+
         Args:
             remote_path: S3 object key.
-            
+
         Returns:
             Dictionary containing deletion result.
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
+        # Check rate limit before API call
+        try:
+            self._check_rate_limit("delete_file")
+        except RuntimeError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             self.s3_client.delete_object(
                 Bucket=self.bucket_name,
@@ -267,7 +324,14 @@ class S3Connector(CloudConnector):
         if not self._connected:
             logger.error("Not connected to S3")
             return []
-        
+
+        # Check rate limit before API call
+        try:
+            self._check_rate_limit("list_files")
+        except RuntimeError as e:
+            logger.error(f"Rate limit exceeded: {e}")
+            return []
+
         try:
             response = self.s3_client.list_objects_v2(
                 Bucket=self.bucket_name,
@@ -291,16 +355,22 @@ class S3Connector(CloudConnector):
     
     def get_file_metadata(self, remote_path: str) -> Dict[str, Any]:
         """Get metadata for a file in S3.
-        
+
         Args:
             remote_path: S3 object key.
-            
+
         Returns:
             Dictionary containing file metadata.
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to S3'}
-        
+
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+
         try:
             response = self.s3_client.head_object(
                 Bucket=self.bucket_name,

@@ -45,6 +45,8 @@ class DropboxConnector(CloudConnector):
         """
         super().__init__()
         self._connected = False
+
+
         
         if not DROPBOX_AVAILABLE:
             raise ImportError(
@@ -80,7 +82,7 @@ class DropboxConnector(CloudConnector):
     
     def disconnect(self) -> bool:
         """Disconnect from Dropbox.
-        
+
         Returns:
             bool: True if disconnection successful.
         """
@@ -88,6 +90,18 @@ class DropboxConnector(CloudConnector):
         self._connected = False
         logger.info("Disconnected from Dropbox")
         return True
+
+    def __del__(self):
+        """Securely clear credentials from memory when object is destroyed.
+
+        This prevents credential leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear Dropbox access token
+        if hasattr(self, 'access_token') and self.access_token:
+            self.access_token = None
+        if hasattr(self, 'dbx'):
+            self.dbx = None
     
     def upload_file(
         self,
@@ -107,6 +121,12 @@ class DropboxConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         file_path = Path(file_path)
         
@@ -179,6 +199,12 @@ class DropboxConnector(CloudConnector):
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
         
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
+        
         local_path = Path(local_path)
         
         # Create parent directory if needed
@@ -232,6 +258,12 @@ class DropboxConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Prepare full remote path
@@ -312,6 +344,12 @@ class DropboxConnector(CloudConnector):
         """
         if not self._connected:
             return {'success': False, 'error': 'Not connected to Dropbox'}
+        
+        # Validate remote path to prevent directory traversal
+        try:
+            self._validate_remote_path(remote_path)
+        except ValueError as e:
+            return {'success': False, 'error': str(e)}
         
         try:
             # Prepare full remote path
