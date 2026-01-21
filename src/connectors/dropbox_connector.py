@@ -44,7 +44,7 @@ class DropboxConnector(CloudConnector):
             root_path: Root path in Dropbox for all operations (e.g., '/SecureMedia').
         """
         super().__init__()
-        self.connected = False
+        self._connected = False
         
         if not DROPBOX_AVAILABLE:
             raise ImportError(
