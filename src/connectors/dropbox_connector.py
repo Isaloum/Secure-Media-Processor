@@ -45,11 +45,9 @@ class DropboxConnector(CloudConnector):
         """
         super().__init__()
         self._connected = False
-        claude/setup-production-fullstack-NWyrz
 
 
         
-        main
         if not DROPBOX_AVAILABLE:
             raise ImportError(
                 "Dropbox SDK not installed. "
