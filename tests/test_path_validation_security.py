@@ -44,11 +44,18 @@ class TestPathTraversalSecurity:
         "../../sensitive_data",           # Relative parent paths
         "/etc/shadow",                     # Absolute Unix path
         "C:\\Windows\\System32",           # Absolute Windows path
+        "D:\\secrets\\data",               # Another Windows absolute path
         "folder/../../../etc/passwd",     # Mixed valid and traversal
         "test\x00file",                    # Null byte injection
         "test\nfile",                      # Newline injection
         "test\rfile",                      # Carriage return injection
+        "test\tfile",                      # Tab injection
         "",                                 # Empty string
+        "%2e%2e%2f%2e%2e%2fetc%2fpasswd", # URL encoded ../../../etc/passwd
+        "..%2f..%2fetc%2fpasswd",         # Partially URL encoded
+        "%2e%2e%5c%2e%2e%5cWindows",      # URL encoded ..\..\Windows
+        "..%252f..%252fetc",               # Double URL encoded
+        "%252e%252e%252f%252e%252e",      # Double encoded ../..
     ]
 
     # Test cases for valid paths

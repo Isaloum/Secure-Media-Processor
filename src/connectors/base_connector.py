@@ -8,7 +8,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
+from urllib.parse import unquote
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +183,7 @@ class CloudConnector(ABC):
         """Validate remote path to prevent directory traversal attacks.
 
         This security check prevents malicious paths like '../../../etc/passwd'
-        from being used in cloud operations.
+        or URL-encoded variants like '%2e%2e%2f' from being used in cloud operations.
 
         Args:
             remote_path: Remote path/key to validate.
@@ -192,20 +194,58 @@ class CloudConnector(ABC):
         if not remote_path or not isinstance(remote_path, str):
             raise ValueError("Remote path must be a non-empty string")
 
+        # Decode URL encoding to prevent bypass attempts like %2e%2e%2f
+        decoded_path = unquote(remote_path)
+
+        # Decode multiple times to catch double-encoding
+        prev_decoded = decoded_path
+        for _ in range(3):  # Max 3 levels of encoding
+            decoded_path = unquote(decoded_path)
+            if decoded_path == prev_decoded:
+                break
+            prev_decoded = decoded_path
+
+        # Check for Windows drive letters (e.g., C:\, D:\)
+        if re.match(r'^[a-zA-Z]:[/\\]', decoded_path):
+            raise ValueError(f"Windows absolute paths not allowed: {remote_path}")
+
         # Normalize path and check for traversal attempts
-        normalized = Path(remote_path).as_posix()
+        normalized = Path(decoded_path).as_posix()
 
         # Prevent absolute paths and parent directory references
         if normalized.startswith('/') or normalized.startswith('\\'):
             raise ValueError(f"Absolute paths not allowed: {remote_path}")
 
-        if '..' in Path(remote_path).parts:
+        # Check for '..' in multiple forms
+        if '..' in Path(decoded_path).parts:
             raise ValueError(f"Path traversal detected: {remote_path}")
 
+        # Additional check for encoded dots and slashes in raw string
+        traversal_patterns = [
+            '..',           # Standard parent directory
+            '%2e%2e',       # URL encoded '..'
+            '%252e%252e',   # Double URL encoded '..'
+            '..%2f',        # Mixed encoding
+            '%2e%2e%2f',    # Full URL encoded '../'
+            '..%5c',        # Backslash variant
+            '%2e%2e%5c',    # URL encoded '..\\'
+        ]
+
+        lower_path = remote_path.lower()
+        for pattern in traversal_patterns:
+            if pattern in lower_path:
+                raise ValueError(f"Path traversal detected: {remote_path}")
+
         # Prevent null bytes and other dangerous characters
-        dangerous_chars = ['\0', '\n', '\r']
-        if any(char in remote_path for char in dangerous_chars):
+        dangerous_chars = ['\0', '\n', '\r', '\t']
+        if any(char in decoded_path for char in dangerous_chars):
             raise ValueError(f"Invalid characters in path: {remote_path}")
+
+        # Ensure path doesn't try to escape with mixed separators
+        if '\\' in decoded_path and '/' in decoded_path:
+            logger.warning(f"Mixed path separators detected: {remote_path}")
+            # Allow but normalize to forward slashes only
+            decoded_path = decoded_path.replace('\\', '/')
 
     def _calculate_checksum(self, file_path: Union[str, Path]) -> str:
         """Calculate SHA-256 checksum of a file.
