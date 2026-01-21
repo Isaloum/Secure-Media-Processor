@@ -3,11 +3,11 @@ layout: default
 title: Secure Media Processor - Privacy-First Media Encryption & Cloud Storage
 ---
 
-<div align="center" style="padding: 60px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; margin-bottom: 40px;">
-  <h1 style="color: white; font-size: 3.5em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+<div align="center" style="padding: 50px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; margin-bottom: 40px;">
+  <h1 style="color: white; font-size: 2.2em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
     🔒 Secure Media Processor
   </h1>
-  <p style="color: #f0f0f0; font-size: 1.4em; margin-top: 20px; font-weight: 300;">
+  <p style="color: #f0f0f0; font-size: 1.1em; margin-top: 20px; font-weight: 300;">
     Military-grade encryption meets GPU acceleration for your media files
   </p>
   <p style="margin-top: 30px;">
