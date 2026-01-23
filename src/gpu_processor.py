@@ -13,24 +13,86 @@ logger = logging.getLogger(__name__)
 
 
 class GPUMediaProcessor:
-    """Handle GPU-accelerated media processing operations."""
-    
+    """Handle GPU-accelerated media processing operations.
+
+    Supports multiple GPU backends:
+    - NVIDIA CUDA (RTX/Tesla/Quadro)
+    - Apple Metal (M1/M2/M3)
+    - AMD ROCm (Radeon RX)
+    - Intel oneAPI (Arc)
+    """
+
     def __init__(self, gpu_enabled: bool = True, device_id: int = 0):
-        """Initialize GPU processor.
-        
+        """Initialize GPU processor with automatic device detection.
+
         Args:
             gpu_enabled: Whether to use GPU acceleration.
-            device_id: CUDA device ID to use.
+            device_id: Device ID to use (for multi-GPU systems).
         """
-        self.gpu_enabled = gpu_enabled and torch.cuda.is_available()
-        
-        if self.gpu_enabled:
+        self.gpu_enabled = False
+        self.device_type = 'cpu'
+        self.device_name = 'CPU Processing'
+
+        if not gpu_enabled:
+            self.device = torch.device('cpu')
+            logger.info("GPU disabled by user, using CPU")
+            return
+
+        # Try NVIDIA CUDA first (most common)
+        if torch.cuda.is_available():
             self.device = torch.device(f'cuda:{device_id}')
-            logger.info(f"GPU enabled: {torch.cuda.get_device_name(device_id)}")
-            logger.info(f"GPU memory: {torch.cuda.get_device_properties(device_id).total_memory / 1e9:.2f} GB")
+            self.gpu_enabled = True
+            self.device_type = 'cuda'
+            self.device_name = torch.cuda.get_device_name(device_id)
+            gpu_memory = torch.cuda.get_device_properties(device_id).total_memory / 1e9
+            logger.info(f"🎮 NVIDIA GPU detected: {self.device_name}")
+            logger.info(f"💾 GPU memory: {gpu_memory:.2f} GB")
+
+        # Try Apple Metal (M1/M2/M3 Macs)
+        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
+            self.device = torch.device('mps')
+            self.gpu_enabled = True
+            self.device_type = 'mps'
+            self.device_name = 'Apple Metal GPU'
+            logger.info(f"🍎 Apple Metal GPU detected: {self.device_name}")
+            logger.info("💾 Apple Silicon unified memory")
+
+        # Try Intel oneAPI (Arc GPUs)
+        elif hasattr(torch, 'xpu') and torch.xpu.is_available():
+            self.device = torch.device(f'xpu:{device_id}')
+            self.gpu_enabled = True
+            self.device_type = 'xpu'
+            self.device_name = f'Intel XPU {device_id}'
+            logger.info(f"⚡ Intel GPU detected: {self.device_name}")
+
+        # Try AMD ROCm (if available)
+        elif hasattr(torch.version, 'hip') and torch.version.hip is not None:
+            # ROCm uses CUDA-compatible API
+            self.device = torch.device(f'cuda:{device_id}')
+            self.gpu_enabled = True
+            self.device_type = 'rocm'
+            self.device_name = 'AMD ROCm GPU'
+            logger.info(f"🔴 AMD GPU detected: {self.device_name}")
+
+        # Fallback to CPU
         else:
             self.device = torch.device('cpu')
-            logger.info("GPU not available, using CPU")
+            logger.info("⚠️  No GPU detected, using CPU")
+            logger.info("Supported GPUs: NVIDIA (CUDA), Apple (Metal), AMD (ROCm), Intel (Arc)")
+
+    def _clear_gpu_cache(self):
+        """Clear GPU memory cache based on device type."""
+        if not self.gpu_enabled:
+            return
+
+        if self.device_type == 'cuda' or self.device_type == 'rocm':
+            torch.cuda.empty_cache()
+        elif self.device_type == 'mps':
+            if hasattr(torch.mps, 'empty_cache'):
+                torch.mps.empty_cache()
+        elif self.device_type == 'xpu':
+            if hasattr(torch.xpu, 'empty_cache'):
+                torch.xpu.empty_cache()
     
     def resize_image(self,
                      input_path: Union[str, Path],
@@ -82,8 +144,7 @@ class GPUMediaProcessor:
 
         # Clear GPU memory to prevent memory leaks
         del image, resized
-        if self.gpu_enabled:
-            torch.cuda.empty_cache()
+        self._clear_gpu_cache()
 
         return result
     
@@ -126,8 +187,8 @@ class GPUMediaProcessor:
                 failed.append({'file': str(input_path), 'error': str(e)})
 
         # Final GPU memory cleanup after batch processing
+        self._clear_gpu_cache()
         if self.gpu_enabled:
-            torch.cuda.empty_cache()
             logger.debug(f"GPU memory freed after batch processing {len(processed)} images")
 
         return {
@@ -318,21 +379,42 @@ class GPUMediaProcessor:
     
     def get_device_info(self) -> dict:
         """Get information about the processing device.
-        
+
         Returns:
             Dictionary containing device information.
         """
-        if self.gpu_enabled:
-            return {
-                'device': 'GPU',
-                'name': torch.cuda.get_device_name(0),
-                'memory_total': torch.cuda.get_device_properties(0).total_memory / 1e9,
-                'memory_allocated': torch.cuda.memory_allocated(0) / 1e9,
-                'memory_cached': torch.cuda.memory_reserved(0) / 1e9,
+        base_info = {
+            'device': self.device_type.upper(),
+            'name': self.device_name,
+            'backend': self.device_type
+        }
+
+        if not self.gpu_enabled:
+            return base_info
+
+        # Add GPU-specific information based on type
+        if self.device_type == 'cuda':
+            base_info.update({
+                'vendor': 'NVIDIA',
+                'memory_total_gb': torch.cuda.get_device_properties(0).total_memory / 1e9,
+                'memory_allocated_gb': torch.cuda.memory_allocated(0) / 1e9,
+                'memory_cached_gb': torch.cuda.memory_reserved(0) / 1e9,
                 'cuda_version': torch.version.cuda
-            }
-        else:
-            return {
-                'device': 'CPU',
-                'name': 'CPU Processing'
-            }
+            })
+        elif self.device_type == 'rocm':
+            base_info.update({
+                'vendor': 'AMD',
+                'rocm_version': torch.version.hip if hasattr(torch.version, 'hip') else 'N/A'
+            })
+        elif self.device_type == 'mps':
+            base_info.update({
+                'vendor': 'Apple',
+                'architecture': 'Apple Silicon (M1/M2/M3)'
+            })
+        elif self.device_type == 'xpu':
+            base_info.update({
+                'vendor': 'Intel',
+                'architecture': 'Arc GPU'
+            })
+
+        return base_info
