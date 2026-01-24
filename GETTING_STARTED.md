@@ -108,6 +108,12 @@ This downloads all the required libraries:
 pip install -r requirements.txt
 ```
 
+**Optional - GPU Acceleration**: If you want GPU support for faster processing:
+```bash
+pip install -r requirements-gpu.txt
+# Or use: pip install -e .[gpu]
+```
+
 Wait for the installation to complete (this may take a few minutes).
 
 ### Step 4: Set Up Configuration (Optional)
@@ -291,12 +297,13 @@ DROPBOX_ROOT_PATH=/SecureMedia
 **Solution:** Make sure you have write permissions in the project folder. On macOS/Linux, you might need to run `chmod +x` on the script.
 
 ### Problem: GPU not detected but I have an NVIDIA card
-**Solution:** 
-1. Install NVIDIA CUDA drivers from [developer.nvidia.com/cuda-downloads](https://developer.nvidia.com/cuda-downloads)
-2. Reinstall PyTorch with CUDA support: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118`
+**Solution:**
+1. First, install GPU dependencies: `pip install -r requirements-gpu.txt` or `pip install -e .[gpu]`
+2. Install NVIDIA CUDA drivers from [developer.nvidia.com/cuda-downloads](https://developer.nvidia.com/cuda-downloads)
+3. If needed, reinstall PyTorch with CUDA support: `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118`
 
 ### Problem: "Module not found" errors
-**Solution:** Make sure you activated the virtual environment and ran `pip install -r requirements.txt`
+**Solution:** Make sure you activated the virtual environment and ran `pip install -r requirements.txt`. For GPU support, also run `pip install -r requirements-gpu.txt`
 
 ### Problem: Cloud upload fails
 **Solution:** 

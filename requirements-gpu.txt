@@ -1,0 +1,9 @@
+# Optional GPU Processing Dependencies
+# Install with: pip install -r requirements-gpu.txt
+# Or use: pip install secure-media-processor[gpu]
+
+torch>=2.1.2
+torchvision>=0.16.2
+
+# Note: PyTorch installation may require platform-specific instructions
+# Visit https://pytorch.org/get-started/locally/ for your platform

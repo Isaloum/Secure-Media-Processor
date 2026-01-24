@@ -12,12 +12,10 @@ google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.0
 dropbox==11.36.2
 
-# GPU Processing
-torch==2.1.2
-torchvision==0.16.2
+# Media Processing (GPU processing via optional install: pip install -e .[gpu])
 opencv-python==4.9.0.80
 Pillow==10.2.0
-numpy>=1.22,<1.25
+numpy>=1.26.0
 
 # CLI and utilities
 click==8.1.7
