@@ -32,6 +32,16 @@ The software automatically detects and uses the best available GPU:
 
 ## Installation Requirements
 
+**GPU dependencies are optional**. Install them separately:
+
+```bash
+# Option 1: Install from requirements file
+pip install -r requirements-gpu.txt
+
+# Option 2: Install via package extras
+pip install -e .[gpu]
+```
+
 ### NVIDIA CUDA (Windows/Linux)
 
 **Supported GPUs:**
@@ -41,10 +51,12 @@ The software automatically detects and uses the best available GPU:
 
 **Requirements:**
 ```bash
-# CUDA drivers (version 11.8 or higher)
+# 1. Install GPU dependencies (see above)
+
+# 2. CUDA drivers (version 11.8 or higher)
 # Download from: https://developer.nvidia.com/cuda-downloads
 
-# PyTorch with CUDA support
+# 3. If needed, reinstall PyTorch with CUDA support
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 ```
 
@@ -59,9 +71,12 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 
 **Requirements:**
 ```bash
-# macOS 12.3 or higher
-# PyTorch with MPS support (included by default on Mac)
-pip install torch torchvision
+# 1. Install GPU dependencies
+pip install -r requirements-gpu.txt
+# Or: pip install -e .[gpu]
+
+# 2. macOS 12.3 or higher required
+# PyTorch with MPS support is included in the GPU dependencies
 ```
 
 **No CUDA drivers needed!** Metal support is built into macOS.
@@ -75,10 +90,14 @@ pip install torch torchvision
 
 **Requirements:**
 ```bash
-# ROCm drivers (version 5.4 or higher)
+# 1. Install GPU dependencies
+pip install -r requirements-gpu.txt
+# Or: pip install -e .[gpu]
+
+# 2. ROCm drivers (version 5.4 or higher)
 # Installation guide: https://rocmdocs.amd.com/
 
-# PyTorch with ROCm support
+# 3. Reinstall PyTorch with ROCm support
 pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm5.4.2
 ```
 
@@ -91,11 +110,15 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/rocm5
 
 **Requirements:**
 ```bash
-# Intel GPU drivers
+# 1. Install GPU dependencies
+pip install -r requirements-gpu.txt
+# Or: pip install -e .[gpu]
+
+# 2. Intel GPU drivers
 # Download from: https://www.intel.com/content/www/us/en/download/785597/
 
-# PyTorch with XPU support
-pip install torch torchvision intel-extension-for-pytorch
+# 3. Intel Extension for PyTorch
+pip install intel-extension-for-pytorch
 ```
 
 ## Performance Comparison
@@ -179,8 +202,12 @@ smp info
 
 ### "No GPU detected" on Mac with M1/M2/M3
 
-**Solution:** Upgrade PyTorch:
+**Solution:**
 ```bash
+# 1. Install GPU dependencies
+pip install -r requirements-gpu.txt
+
+# 2. Ensure PyTorch 1.12+ is installed
 pip install --upgrade torch torchvision
 ```
 

@@ -82,6 +82,10 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 3. **Install dependencies**:
 ```bash
 pip install -r requirements.txt
+
+# Optional: For GPU acceleration support (NVIDIA/AMD/Apple/Intel)
+pip install -r requirements-gpu.txt
+# Or install via: pip install -e .[gpu]
 ```
 
 4. **Configure credentials**:

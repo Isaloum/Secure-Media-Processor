@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secure-media-processor"
-version = "1.0.0"
+version = "1.0.1"
 description = "Privacy-focused media processing with GPU acceleration and multi-cloud storage integration"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -55,11 +55,9 @@ dependencies = [
     "google-auth-httplib2>=0.2.0",
     "google-auth-oauthlib>=1.2.0",
     "dropbox>=11.36.2",
-    "torch>=2.1.2",
-    "torchvision>=0.16.2",
     "opencv-python>=4.9.0.80",
     "Pillow>=10.2.0",
-    "numpy>=1.22,<1.25",
+    "numpy>=1.26.0",
     "click>=8.1.7",
     "tqdm>=4.66.1",
     "colorama>=0.4.6",
