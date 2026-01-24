@@ -1,13 +1,21 @@
 """GPU-accelerated media processing module."""
 
-import torch
-import torchvision.transforms as transforms
-from torchvision.io import read_image, write_jpeg, write_png
 import cv2
 import numpy as np
 from pathlib import Path
 from typing import Union, Optional, Tuple, List
 import logging
+
+# Try to import torch - it's optional
+try:
+    import torch
+    import torchvision.transforms as transforms
+    from torchvision.io import read_image, write_jpeg, write_png
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+    transforms = None
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +40,13 @@ class GPUMediaProcessor:
         self.gpu_enabled = False
         self.device_type = 'cpu'
         self.device_name = 'CPU Processing'
+        self.device = None
+
+        # Check if torch is available
+        if not TORCH_AVAILABLE:
+            logger.warning("⚠️  PyTorch not installed. GPU acceleration disabled.")
+            logger.info("To enable GPU support: pip install secure-media-processor[gpu]")
+            return
 
         if not gpu_enabled:
             self.device = torch.device('cpu')
@@ -80,6 +95,15 @@ class GPUMediaProcessor:
             logger.info("⚠️  No GPU detected, using CPU")
             logger.info("Supported GPUs: NVIDIA (CUDA), Apple (Metal), AMD (ROCm), Intel (Arc)")
 
+    def _check_torch_available(self):
+        """Check if PyTorch is available and raise helpful error if not."""
+        if not TORCH_AVAILABLE:
+            raise ImportError(
+                "PyTorch is required for GPU-accelerated media processing.\n"
+                "Install it with: pip install secure-media-processor[gpu]\n"
+                "Or: pip install -r requirements-gpu.txt"
+            )
+
     def _clear_gpu_cache(self):
         """Clear GPU memory cache based on device type."""
         if not self.gpu_enabled:
@@ -100,16 +124,18 @@ class GPUMediaProcessor:
                      size: Tuple[int, int],
                      maintain_aspect_ratio: bool = True) -> dict:
         """Resize an image using GPU acceleration.
-        
+
         Args:
             input_path: Path to input image.
             output_path: Path to save resized image.
             size: Target size (width, height).
             maintain_aspect_ratio: Whether to maintain aspect ratio.
-            
+
         Returns:
             Dictionary containing processing metadata.
         """
+        self._check_torch_available()
+
         input_path = Path(input_path)
         output_path = Path(output_path)
         
@@ -154,16 +180,18 @@ class GPUMediaProcessor:
                      size: Tuple[int, int],
                      maintain_aspect_ratio: bool = True) -> dict:
         """Resize multiple images in batch using GPU.
-        
+
         Args:
             input_paths: List of input image paths.
             output_dir: Directory to save resized images.
             size: Target size (width, height).
             maintain_aspect_ratio: Whether to maintain aspect ratio.
-            
+
         Returns:
             Dictionary containing batch processing statistics.
         """
+        self._check_torch_available()
+
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         
@@ -204,16 +232,18 @@ class GPUMediaProcessor:
                      filter_type: str = 'blur',
                      intensity: float = 1.0) -> dict:
         """Apply filters to an image using GPU.
-        
+
         Args:
             input_path: Path to input image.
             output_path: Path to save filtered image.
             filter_type: Type of filter ('blur', 'sharpen', 'edge', 'denoise').
             intensity: Filter intensity (0.0 to 2.0).
-            
+
         Returns:
             Dictionary containing processing metadata.
         """
+        self._check_torch_available()
+
         input_path = Path(input_path)
         output_path = Path(output_path)
         
@@ -302,16 +332,18 @@ class GPUMediaProcessor:
                       operation: str = 'resize',
                       **kwargs) -> dict:
         """Process video using GPU acceleration.
-        
+
         Args:
             input_path: Path to input video.
             output_path: Path to save processed video.
             operation: Operation to perform ('resize', 'filter').
             **kwargs: Additional arguments for the operation.
-            
+
         Returns:
             Dictionary containing processing metadata.
         """
+        self._check_torch_available()
+
         input_path = Path(input_path)
         output_path = Path(output_path)
         

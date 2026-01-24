@@ -9,7 +9,6 @@ from typing import Optional
 from src.config import settings
 from src.encryption import MediaEncryptor
 from src.cloud_storage import CloudStorageManager
-from src.gpu_processor import GPUMediaProcessor
 
 # Initialize colorama
 init(autoreset=True)
@@ -183,6 +182,7 @@ def download(remote_key: str, local_file: str, bucket: Optional[str], verify: bo
 def resize(input_file: str, output_file: str, width: int, height: int, gpu: bool):
     """Resize an image using GPU acceleration."""
     from src.license_manager import get_license_manager, FeatureFlags
+    from src.gpu_processor import GPUMediaProcessor
 
     # Check license for GPU processing if requested
     if gpu:
@@ -225,6 +225,7 @@ def resize(input_file: str, output_file: str, width: int, height: int, gpu: bool
 def filter_image(input_file: str, output_file: str, filter: str, intensity: float, gpu: bool):
     """Apply filters to an image."""
     from src.license_manager import get_license_manager, FeatureFlags
+    from src.gpu_processor import GPUMediaProcessor
 
     # Check license for GPU processing if requested
     if gpu:
@@ -261,8 +262,10 @@ def filter_image(input_file: str, output_file: str, filter: str, intensity: floa
 @cli.command()
 def info():
     """Display system and GPU information."""
+    from src.gpu_processor import GPUMediaProcessor
+
     click.echo(f"{Fore.CYAN}📊 System Information{Style.RESET_ALL}\n")
-    
+
     processor = GPUMediaProcessor()
     device_info = processor.get_device_info()
     
