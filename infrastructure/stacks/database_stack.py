@@ -64,7 +64,7 @@ class DatabaseStack(Stack):
             ),
             instance_type=ec2.InstanceType.of(
                 ec2.InstanceClass.BURSTABLE4_GRAVITON,
-                ec2.InstanceSize.MICRO,  # t4g.micro for cost efficiency
+                ec2.InstanceSize.SMALL,  # t4g.small for production performance
             ),
             vpc=vpc,
             vpc_subnets=ec2.SubnetSelection(
@@ -75,13 +75,13 @@ class DatabaseStack(Stack):
             max_allocated_storage=100,  # Auto-scaling up to 100GB
             storage_type=rds.StorageType.GP3,
             storage_encrypted=True,
-            multi_az=False,  # Set to True for production
+            multi_az=True,  # Enabled for production high availability
             publicly_accessible=False,
             parameter_group=parameter_group,
             backup_retention=Duration.days(7),
             preferred_backup_window="03:00-04:00",
             preferred_maintenance_window="Mon:04:00-Mon:05:00",
-            deletion_protection=False,  # Set to True for production
+            deletion_protection=True,  # Enabled for production data protection
             removal_policy=RemovalPolicy.SNAPSHOT,  # Create snapshot on deletion
             enable_performance_insights=True,
             performance_insight_retention=rds.PerformanceInsightRetention.DEFAULT,  # 7 days (free tier)
