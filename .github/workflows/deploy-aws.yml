@@ -1,0 +1,182 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+      - claude/setup-production-fullstack-*
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "18"
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --cov=src --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/claude/setup-production-fullstack-')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install AWS CDK
+        run: |
+          npm install -g aws-cdk
+          cdk --version
+
+      - name: Install infrastructure dependencies
+        run: |
+          cd infrastructure
+          pip install -r requirements.txt
+
+      - name: Install Lambda dependencies
+        run: |
+          # Auth function
+          cd lambda/auth
+          pip install -r requirements.txt -t .
+
+          # File processing function
+          cd ../file_processing
+          pip install -r requirements.txt -t .
+
+          # Malware scan function
+          cd ../malware_scan
+          pip install -r requirements.txt -t .
+
+          # Encryption function
+          cd ../encryption
+          pip install -r requirements.txt -t .
+
+          # Shared layer
+          cd ../shared
+          pip install -r requirements.txt -t .
+
+      - name: CDK Bootstrap (if needed)
+        run: |
+          cd infrastructure
+          cdk bootstrap --require-approval never
+
+      - name: CDK Synth
+        run: |
+          cd infrastructure
+          cdk synth
+
+      - name: CDK Deploy
+        run: |
+          cd infrastructure
+          cdk deploy --all --require-approval never
+
+      - name: Get API URL
+        id: get_api_url
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name SecureMediaProcessor-prod-API \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+          echo "API_URL=$API_URL" >> $GITHUB_OUTPUT
+          echo "API URL: $API_URL"
+
+      - name: Run smoke tests
+        run: |
+          # Test API health
+          curl -f ${{ steps.get_api_url.outputs.API_URL }}/api/v1/auth/register || true
+
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "API URL: ${{ steps.get_api_url.outputs.API_URL }}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          echo "Check logs for details."
+
+  cleanup:
+    name: Cleanup Old Deployments
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Clean old Lambda versions
+        run: |
+          # Keep only the last 5 versions of each Lambda function
+          for function in secure-media-auth secure-media-file secure-media-scan secure-media-encryption; do
+            aws lambda list-versions-by-function --function-name $function \
+              --query "Versions[?Version!='$LATEST'].Version" \
+              --output text | tr '\t' '\n' | sort -rn | tail -n +6 | \
+              xargs -I {} aws lambda delete-function --function-name $function --qualifier {} || true
+          done
+
+      - name: Clean old CloudWatch logs
+        run: |
+          # Delete log streams older than 30 days
+          aws logs describe-log-groups --query "logGroups[].logGroupName" --output text | \
+            tr '\t' '\n' | grep -E "secure-media|SecureMediaProcessor" | \
+            xargs -I {} aws logs put-retention-policy --log-group-name {} --retention-in-days 7 || true
