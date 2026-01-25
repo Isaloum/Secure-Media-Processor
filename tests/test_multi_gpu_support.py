@@ -1,8 +1,11 @@
 """Tests for multi-GPU backend support."""
 
 import pytest
-import torch
 from unittest.mock import patch, MagicMock
+
+# Skip all tests in this module if torch is not available
+torch = pytest.importorskip("torch")
+
 from src.gpu_processor import GPUMediaProcessor
 
 
