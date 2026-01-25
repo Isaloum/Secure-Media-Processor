@@ -87,16 +87,6 @@ class StorageStack(Stack):
             ],
         )
 
-        # Enable server access logging for media bucket
-        self.media_bucket.add_to_resource_policy(
-            iam.PolicyStatement(
-                effect=iam.Effect.ALLOW,
-                principals=[iam.AccountPrincipal(Stack.of(self).account)],
-                actions=["s3:PutObject"],
-                resources=[f"{self.logs_bucket.bucket_arn}/*"],
-            )
-        )
-
         # Static Website Bucket (for future web interface)
         self.static_bucket = s3.Bucket(
             self,

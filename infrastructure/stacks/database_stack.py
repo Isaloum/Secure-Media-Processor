@@ -45,7 +45,7 @@ class DatabaseStack(Stack):
             self,
             "DBParameterGroup",
             engine=rds.DatabaseInstanceEngine.postgres(
-                version=rds.PostgresEngineVersion.VER_15_5
+                version=rds.PostgresEngineVersion.VER_15
             ),
             parameters={
                 "shared_preload_libraries": "pg_stat_statements",
@@ -60,7 +60,7 @@ class DatabaseStack(Stack):
             "Database",
             database_name="securemedia",
             engine=rds.DatabaseInstanceEngine.postgres(
-                version=rds.PostgresEngineVersion.VER_15_5
+                version=rds.PostgresEngineVersion.VER_15
             ),
             instance_type=ec2.InstanceType.of(
                 ec2.InstanceClass.BURSTABLE4_GRAVITON,
