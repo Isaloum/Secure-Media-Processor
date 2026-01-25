@@ -69,3 +69,31 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# CDK
+infrastructure/cdk.out/
+infrastructure/.cdk.staging/
+*.asset.json
+
+# Lambda dependencies (installed with pip -t)
+lambda/*/dist-info/
+lambda/*/*.dist-info/
+lambda/*/libs/
+lambda/*/*.libs/
+lambda/*/bin/
+lambda/auth/bcrypt/
+lambda/auth/jwt/
+lambda/encryption/cffi/
+lambda/encryption/cryptography/
+lambda/encryption/pycparser/
+lambda/file_processing/PIL/
+lambda/file_processing/pillow*/
+lambda/shared/boto3/
+lambda/shared/botocore/
+lambda/shared/dateutil/
+lambda/shared/jmespath/
+lambda/shared/psycopg2/
+lambda/shared/psycopg2_binary*/
+lambda/shared/s3transfer/
+lambda/shared/six.py
+lambda/shared/urllib3/

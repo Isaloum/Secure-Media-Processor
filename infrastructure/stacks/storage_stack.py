@@ -6,6 +6,7 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     aws_s3 as s3,
+    aws_iam as iam,
     CfnOutput,
 )
 from constructs import Construct
@@ -88,9 +89,9 @@ class StorageStack(Stack):
 
         # Enable server access logging for media bucket
         self.media_bucket.add_to_resource_policy(
-            s3.PolicyStatement(
-                effect=s3.Effect.ALLOW,
-                principals=[s3.AccountPrincipal(Stack.of(self).account)],
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                principals=[iam.AccountPrincipal(Stack.of(self).account)],
                 actions=["s3:PutObject"],
                 resources=[f"{self.logs_bucket.bucket_arn}/*"],
             )

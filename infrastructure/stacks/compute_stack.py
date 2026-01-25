@@ -47,7 +47,6 @@ class ComputeStack(Stack):
             "DB_PROXY_ENDPOINT": database.db_instance_endpoint_address,
             "DB_NAME": "securemedia",
             "MEDIA_BUCKET": media_bucket.bucket_name,
-            "AWS_REGION": Stack.of(self).region,
         }
 
         # 1. Auth Lambda Function (Register, Login, JWT)
