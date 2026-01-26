@@ -262,18 +262,43 @@ def filter_image(input_file: str, output_file: str, filter: str, intensity: floa
 def info():
     """Display system and GPU information."""
     click.echo(f"{Fore.CYAN}📊 System Information{Style.RESET_ALL}\n")
-    
+
     processor = GPUMediaProcessor()
     device_info = processor.get_device_info()
-    
+
     click.echo(f"{Fore.YELLOW}Device:{Style.RESET_ALL} {device_info['device']}")
     click.echo(f"{Fore.YELLOW}Name:{Style.RESET_ALL} {device_info['name']}")
-    
-    if device_info['device'] == 'GPU':
-        click.echo(f"{Fore.YELLOW}Total Memory:{Style.RESET_ALL} {device_info['memory_total']:.2f} GB")
-        click.echo(f"{Fore.YELLOW}Allocated Memory:{Style.RESET_ALL} {device_info['memory_allocated']:.2f} GB")
-        click.echo(f"{Fore.YELLOW}Cached Memory:{Style.RESET_ALL} {device_info['memory_cached']:.2f} GB")
-        click.echo(f"{Fore.YELLOW}CUDA Version:{Style.RESET_ALL} {device_info['cuda_version']}")
+
+    # Check for GPU types (CUDA, ROCM, MPS, XPU) - not 'GPU'
+    gpu_types = ['CUDA', 'ROCM', 'MPS', 'XPU']
+    if device_info['device'] in gpu_types:
+        # Show vendor if available
+        if 'vendor' in device_info:
+            click.echo(f"{Fore.YELLOW}Vendor:{Style.RESET_ALL} {device_info['vendor']}")
+
+        # CUDA-specific info
+        if device_info['device'] == 'CUDA':
+            click.echo(f"{Fore.YELLOW}Total Memory:{Style.RESET_ALL} {device_info['memory_total']:.2f} GB")
+            click.echo(f"{Fore.YELLOW}Allocated Memory:{Style.RESET_ALL} {device_info['memory_allocated']:.2f} GB")
+            click.echo(f"{Fore.YELLOW}Cached Memory:{Style.RESET_ALL} {device_info['memory_cached']:.2f} GB")
+            click.echo(f"{Fore.YELLOW}CUDA Version:{Style.RESET_ALL} {device_info['cuda_version']}")
+
+        # ROCm-specific info
+        elif device_info['device'] == 'ROCM':
+            click.echo(f"{Fore.YELLOW}ROCm Version:{Style.RESET_ALL} {device_info.get('rocm_version', 'N/A')}")
+
+        # Apple MPS-specific info
+        elif device_info['device'] == 'MPS':
+            click.echo(f"{Fore.YELLOW}Architecture:{Style.RESET_ALL} {device_info.get('architecture', 'Apple Silicon')}")
+
+        # Intel XPU-specific info
+        elif device_info['device'] == 'XPU':
+            click.echo(f"{Fore.YELLOW}Architecture:{Style.RESET_ALL} {device_info.get('architecture', 'Intel Arc')}")
+
+    # CPU mode - show note if PyTorch not available
+    elif device_info['device'] == 'CPU':
+        if not device_info.get('pytorch_available', True):
+            click.echo(f"{Fore.YELLOW}Note:{Style.RESET_ALL} {device_info.get('note', 'GPU acceleration not available')}")
 
 
 @cli.group()
