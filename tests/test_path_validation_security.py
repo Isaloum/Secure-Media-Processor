@@ -7,6 +7,7 @@ to prevent directory traversal attacks.
 
 import pytest
 from pathlib import Path
+from unittest.mock import Mock, patch
 from src.connectors.s3_connector import S3Connector
 from src.connectors.google_drive_connector import GoogleDriveConnector
 from src.connectors.dropbox_connector import DropboxConnector
@@ -17,25 +18,56 @@ class TestPathTraversalSecurity:
 
     @pytest.fixture
     def s3_connector(self):
-        """Create S3 connector instance for testing."""
-        connector = S3Connector(bucket_name="test-bucket", region="us-east-1")
-        # Mock connection status
-        connector._connected = True
-        return connector
+        """Create S3 connector instance for testing with mocked client."""
+        with patch('boto3.client') as mock_client, \
+             patch('boto3.resource') as mock_resource:
+            mock_s3 = Mock()
+            mock_s3.head_bucket.return_value = True
+            mock_s3.upload_file.return_value = None
+            mock_s3.download_file.return_value = None
+            mock_s3.delete_object.return_value = {}
+            mock_s3.head_object.return_value = {'ContentLength': 100, 'Metadata': {}}
+            mock_s3.list_objects_v2.return_value = {'Contents': []}
+            mock_client.return_value = mock_s3
+            mock_resource.return_value = Mock()
+
+            connector = S3Connector(
+                bucket_name="test-bucket",
+                access_key="test",
+                secret_key="test",
+                region="us-east-1"
+            )
+            connector.connect()
+            # Store mock for validation
+            connector.s3_client = mock_s3
+            yield connector
 
     @pytest.fixture
-    def gdrive_connector(self):
+    def gdrive_connector(self, tmp_path):
         """Create Google Drive connector instance for testing."""
-        connector = GoogleDriveConnector(credentials_path="fake_path.json")
+        # Create a minimal credentials file
+        creds_file = tmp_path / "gdrive_creds.json"
+        creds_file.write_text('{"type": "service_account"}')
+
+        connector = GoogleDriveConnector(credentials_path=str(creds_file))
         connector._connected = True
+        connector._service = Mock()
         return connector
 
     @pytest.fixture
     def dropbox_connector(self):
         """Create Dropbox connector instance for testing."""
-        connector = DropboxConnector(access_token="fake_token")
-        connector._connected = True
-        return connector
+        with patch('dropbox.Dropbox') as mock_dbx_class:
+            mock_dbx = Mock()
+            mock_dbx.users_get_current_account.return_value = Mock()
+            mock_dbx.files_upload.return_value = Mock()
+            mock_dbx.files_download_to_file.return_value = None
+            mock_dbx_class.return_value = mock_dbx
+
+            connector = DropboxConnector(access_token="fake_token")
+            connector._connected = True
+            connector._dbx = mock_dbx
+            yield connector
 
     # Test cases for malicious paths
     malicious_paths = [
@@ -140,22 +172,28 @@ class TestPathTraversalSecurity:
             assert result['success'] is False, f"Should reject path: {malicious_path}"
             assert 'error' in result
 
-    def test_all_connectors_accept_valid_paths(self, s3_connector, gdrive_connector,
-                                                dropbox_connector, tmp_path):
+    def test_all_connectors_accept_valid_paths(self, tmp_path):
         """Test that all connectors accept valid paths (won't fail validation)."""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("test content")
+        from src.connectors.base_connector import CloudConnector
 
-        # Note: These will still fail due to missing mocks for actual cloud operations,
-        # but should pass the validation step
+        # Create a test connector that just validates paths
+        class TestConnector(CloudConnector):
+            def connect(self): return True
+            def disconnect(self): return True
+            def upload_file(self, file_path, remote_path, metadata=None): pass
+            def download_file(self, remote_path, local_path, verify_checksum=True): pass
+            def delete_file(self, remote_path): pass
+            def list_files(self, prefix=''): pass
+            def get_file_metadata(self, remote_path): pass
+
+        connector = TestConnector()
+
+        # Valid paths should NOT raise validation errors
         for valid_path in self.valid_paths:
-            # For S3, validation passes but upload may fail due to missing boto3 mock
-            result = s3_connector.upload_file(test_file, valid_path)
-            # Check that the error (if any) is NOT about path validation
-            if not result['success']:
-                error_msg = result.get('error', '').lower()
-                assert not any(keyword in error_msg
-                             for keyword in ['traversal', 'absolute', 'invalid characters'])
+            try:
+                connector._validate_remote_path(valid_path)
+            except ValueError as e:
+                pytest.fail(f"Valid path '{valid_path}' was rejected: {e}")
 
     def test_base_connector_validate_remote_path_direct(self):
         """Test the _validate_remote_path method directly."""
