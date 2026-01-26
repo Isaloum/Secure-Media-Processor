@@ -5,7 +5,10 @@ from pathlib import Path
 import tempfile
 import numpy as np
 from PIL import Image
-import torch
+
+# Skip all tests in this module if torch is not available
+torch = pytest.importorskip("torch")
+
 from src.gpu_processor import GPUMediaProcessor
 
 
