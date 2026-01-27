@@ -1,0 +1,52 @@
+# ============================================================================
+# Terraform Variables - Example Configuration
+# ============================================================================
+# Copy this file to terraform.tfvars and update the values
+#
+# Usage:
+#   cp terraform.tfvars.example terraform.tfvars
+#   # Edit terraform.tfvars with your values
+#   terraform init
+#   terraform plan
+#   terraform apply
+# ============================================================================
+
+# Required: Your domain name (must already exist in Route 53 or be configured)
+domain_name = "yourdomain.com"
+
+# AWS region (us-east-1 recommended for lowest latency with CloudFront)
+aws_region = "us-east-1"
+
+# Environment name
+environment = "prod"
+
+# Project name (used for resource naming)
+project_name = "secure-media-processor"
+
+# Subdomains
+api_subdomain = "api"
+app_subdomain = "app"
+
+# Lambda settings (keep low to stay in free tier)
+lambda_memory_size = 256  # MB
+lambda_timeout     = 30   # seconds
+
+# S3 versioning (disable to save costs)
+enable_s3_versioning = false
+
+# Cognito callback URLs (add your local dev and production URLs)
+cognito_callback_urls = [
+  "http://localhost:3000/callback",
+  "http://localhost:5173/callback"
+]
+
+cognito_logout_urls = [
+  "http://localhost:3000",
+  "http://localhost:5173"
+]
+
+# Additional tags
+tags = {
+  Owner   = "your-name"
+  Purpose = "secure-media-processing"
+}
