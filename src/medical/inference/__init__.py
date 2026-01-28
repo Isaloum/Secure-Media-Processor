@@ -1,11 +1,18 @@
-"""ML Inference Pipeline for Medical Image Analysis.
+"""ML Inference package for medical image analysis.
 
-This module is maintained for backward compatibility.
-New code should import from src.medical.inference instead.
+This package provides ML inference capabilities:
+- pipeline: Main inference pipeline for cancer prediction
+- Model loading for PyTorch and ONNX models
+- Batch processing and ensembles
+
+Example:
+    >>> from src.medical.inference import CancerPredictionPipeline, ModelConfig
+    >>> config = ModelConfig(model_path='model.pt')
+    >>> pipeline = CancerPredictionPipeline(config)
+    >>> result = pipeline.predict(image)
 """
 
-# Re-export from new location for backward compatibility
-from src.medical.inference import (
+from .pipeline import (
     # Enums
     ModelType,
     PredictionType,
@@ -25,15 +32,20 @@ from src.medical.inference import (
 )
 
 __all__ = [
+    # Enums
     'ModelType',
     'PredictionType',
+    # Config
     'ModelConfig',
     'PredictionResult',
+    # Inference
     'BaseModelInference',
     'PyTorchInference',
     'ONNXInference',
+    # Pipeline
     'CancerPredictionPipeline',
     'ModelEnsemble',
+    # Flags
     'TORCH_AVAILABLE',
     'ONNX_AVAILABLE',
 ]

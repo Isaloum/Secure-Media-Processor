@@ -1,0 +1,276 @@
+"""Base connector interface for cloud storage providers.
+
+This module defines the abstract base class that all cloud storage connectors
+must implement. This ensures a consistent API across different cloud providers.
+"""
+
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Dict, List, Optional, Union, Any
+from datetime import datetime
+from urllib.parse import unquote
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+
+class CloudConnector(ABC):
+    """Abstract base class for cloud storage connectors.
+
+    All cloud storage implementations (S3, Google Drive, Dropbox, etc.)
+    must inherit from this class and implement all abstract methods.
+    """
+
+    def __init__(self, rate_limiter=None, **kwargs):
+        """Initialize the cloud connector.
+
+        Args:
+            rate_limiter: Optional RateLimiter instance for API throttling.
+            **kwargs: Provider-specific configuration parameters.
+        """
+        self.provider_name = self.__class__.__name__.replace('Connector', '')
+        self._connected = False
+        self._rate_limiter = rate_limiter
+
+    def _check_rate_limit(self, operation: str = "operation") -> None:
+        """Check rate limit before performing an operation.
+
+        This method will block until rate limit allows the operation.
+
+        Args:
+            operation: Name of the operation for logging purposes.
+        """
+        if self._rate_limiter:
+            acquired = self._rate_limiter.acquire(tokens=1, blocking=True, timeout=30.0)
+            if not acquired:
+                logger.warning(f"Rate limit timeout for {operation} on {self.provider_name}")
+                raise RuntimeError(f"Rate limit exceeded for {operation}")
+    
+    @abstractmethod
+    def connect(self) -> bool:
+        """Establish connection to the cloud storage provider.
+        
+        Returns:
+            bool: True if connection successful, False otherwise.
+        """
+        pass
+    
+    @abstractmethod
+    def disconnect(self) -> bool:
+        """Disconnect from the cloud storage provider.
+        
+        Returns:
+            bool: True if disconnection successful, False otherwise.
+        """
+        pass
+    
+    @abstractmethod
+    def upload_file(
+        self,
+        file_path: Union[str, Path],
+        remote_path: str,
+        metadata: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """Upload a file to cloud storage.
+        
+        Args:
+            file_path: Path to the local file.
+            remote_path: Remote path/key where file will be stored.
+            metadata: Optional metadata to attach to the file.
+            
+        Returns:
+            Dictionary containing upload result information:
+                - success (bool): Whether upload succeeded
+                - remote_path (str): Remote path of uploaded file
+                - size (int): File size in bytes
+                - checksum (str): File checksum
+                - timestamp (str): Upload timestamp
+                - error (str, optional): Error message if failed
+        """
+        pass
+    
+    @abstractmethod
+    def download_file(
+        self,
+        remote_path: str,
+        local_path: Union[str, Path],
+        verify_checksum: bool = True
+    ) -> Dict[str, Any]:
+        """Download a file from cloud storage.
+        
+        Args:
+            remote_path: Remote path/key of the file.
+            local_path: Local path where file will be saved.
+            verify_checksum: Whether to verify file integrity.
+            
+        Returns:
+            Dictionary containing download result information:
+                - success (bool): Whether download succeeded
+                - local_path (str): Local path of downloaded file
+                - size (int): File size in bytes
+                - checksum_verified (bool): Whether checksum was verified
+                - error (str, optional): Error message if failed
+        """
+        pass
+    
+    @abstractmethod
+    def delete_file(self, remote_path: str) -> Dict[str, Any]:
+        """Delete a file from cloud storage.
+        
+        Args:
+            remote_path: Remote path/key of the file to delete.
+            
+        Returns:
+            Dictionary containing deletion result:
+                - success (bool): Whether deletion succeeded
+                - remote_path (str): Path of deleted file
+                - error (str, optional): Error message if failed
+        """
+        pass
+    
+    @abstractmethod
+    def list_files(self, prefix: str = '') -> List[Dict[str, Any]]:
+        """List files in cloud storage.
+        
+        Args:
+            prefix: Filter results by path prefix.
+            
+        Returns:
+            List of dictionaries containing file information:
+                - path (str): File path
+                - size (int): File size in bytes
+                - last_modified (str): Last modification timestamp
+                - checksum (str, optional): File checksum
+        """
+        pass
+    
+    @abstractmethod
+    def get_file_metadata(self, remote_path: str) -> Dict[str, Any]:
+        """Get metadata for a file in cloud storage.
+        
+        Args:
+            remote_path: Remote path/key of the file.
+            
+        Returns:
+            Dictionary containing file metadata:
+                - success (bool): Whether operation succeeded
+                - size (int): File size in bytes
+                - last_modified (str): Last modification timestamp
+                - metadata (dict): Custom metadata
+                - checksum (str, optional): File checksum
+                - error (str, optional): Error message if failed
+        """
+        pass
+    
+    def is_connected(self) -> bool:
+        """Check if connector is currently connected.
+        
+        Returns:
+            bool: True if connected, False otherwise.
+        """
+        return self._connected
+    
+    def get_provider_name(self) -> str:
+        """Get the name of the cloud storage provider.
+        
+        Returns:
+            str: Provider name (e.g., 'S3', 'GoogleDrive', 'Dropbox').
+        """
+        return self.provider_name
+    
+    def _validate_remote_path(self, remote_path: str) -> None:
+        """Validate remote path to prevent directory traversal attacks.
+
+        This security check prevents malicious paths like '../../../etc/passwd'
+        or URL-encoded variants like '%2e%2e%2f' from being used in cloud operations.
+
+        Args:
+            remote_path: Remote path/key to validate.
+
+        Raises:
+            ValueError: If path contains traversal attempts or invalid characters.
+        """
+        if not remote_path or not isinstance(remote_path, str):
+            raise ValueError("Remote path must be a non-empty string")
+
+        # Decode URL encoding to prevent bypass attempts like %2e%2e%2f
+        decoded_path = unquote(remote_path)
+
+        # Decode multiple times to catch double-encoding
+        prev_decoded = decoded_path
+        for _ in range(3):  # Max 3 levels of encoding
+            decoded_path = unquote(decoded_path)
+            if decoded_path == prev_decoded:
+                break
+            prev_decoded = decoded_path
+
+        # Check for Windows drive letters (e.g., C:\, D:\)
+        if re.match(r'^[a-zA-Z]:[/\\]', decoded_path):
+            raise ValueError(f"Windows absolute paths not allowed: {remote_path}")
+
+        # Normalize path and check for traversal attempts
+        normalized = Path(decoded_path).as_posix()
+
+        # Prevent absolute paths and parent directory references
+        if normalized.startswith('/') or normalized.startswith('\\'):
+            raise ValueError(f"Absolute paths not allowed: {remote_path}")
+
+        # Check for '..' in multiple forms
+        if '..' in Path(decoded_path).parts:
+            raise ValueError(f"Path traversal detected: {remote_path}")
+
+        # Additional check for encoded dots and slashes in raw string
+        traversal_patterns = [
+            '..',           # Standard parent directory
+            '%2e%2e',       # URL encoded '..'
+            '%252e%252e',   # Double URL encoded '..'
+            '..%2f',        # Mixed encoding
+            '%2e%2e%2f',    # Full URL encoded '../'
+            '..%5c',        # Backslash variant
+            '%2e%2e%5c',    # URL encoded '..\\'
+        ]
+
+        lower_path = remote_path.lower()
+        for pattern in traversal_patterns:
+            if pattern in lower_path:
+                raise ValueError(f"Path traversal detected: {remote_path}")
+
+        # Prevent null bytes and other dangerous characters
+        dangerous_chars = ['\0', '\n', '\r', '\t']
+        if any(char in decoded_path for char in dangerous_chars):
+            raise ValueError(f"Invalid characters in path: {remote_path}")
+
+        # Ensure path doesn't try to escape with mixed separators
+        if '\\' in decoded_path and '/' in decoded_path:
+            logger.warning(f"Mixed path separators detected: {remote_path}")
+            # Allow but normalize to forward slashes only
+            decoded_path = decoded_path.replace('\\', '/')
+
+    def _calculate_checksum(self, file_path: Union[str, Path]) -> str:
+        """Calculate SHA-256 checksum of a file.
+
+        This is a helper method that can be used by all connectors.
+
+        Args:
+            file_path: Path to the file.
+
+        Returns:
+            str: Hexadecimal checksum string.
+        """
+        import hashlib
+
+        sha256_hash = hashlib.sha256()
+        with open(file_path, 'rb') as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
+    
+    def __repr__(self) -> str:
+        """String representation of the connector.
+        
+        Returns:
+            str: Connector description.
+        """
+        status = "connected" if self._connected else "disconnected"
+        return f"{self.provider_name}Connector({status})"
