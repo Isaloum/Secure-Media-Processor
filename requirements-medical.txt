@@ -1,0 +1,26 @@
+# Medical Imaging Dependencies
+# Install with: pip install -r requirements-medical.txt
+# Or use: pip install secure-media-processor[medical]
+
+# DICOM Processing
+pydicom>=2.4.0
+
+# NIfTI format support (common in neuroimaging)
+nibabel>=5.2.0
+
+# Medical image preprocessing
+scipy>=1.11.0
+scikit-image>=0.22.0
+
+# ML Inference (optional - also in requirements-gpu.txt)
+# torch>=2.1.2
+# torchvision>=0.16.2
+
+# ONNX Runtime for model inference (CPU)
+onnxruntime>=1.16.0
+
+# For GPU inference with ONNX, use instead:
+# onnxruntime-gpu>=1.16.0
+
+# Additional preprocessing utilities
+SimpleITK>=2.3.0  # Advanced medical image processing
