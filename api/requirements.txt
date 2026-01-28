@@ -1,0 +1,25 @@
+# FastAPI Serverless API Requirements
+# Optimized for Lambda cold starts
+
+# Web Framework
+fastapi==0.109.0
+mangum==0.17.0  # Lambda adapter
+
+# AWS SDK
+boto3==1.34.0
+
+# Authentication
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+email-validator==2.1.0
+
+# HTTP Client (for Gumroad API)
+httpx==0.26.0
+
+# Utilities
+python-multipart==0.0.6  # File uploads
+python-dateutil==2.8.2
