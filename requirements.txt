@@ -1,4 +1,6 @@
 # Core dependencies
+# For GPU support: pip install -r requirements-gpu.txt
+# For medical imaging: pip install -r requirements-medical.txt
 cryptography==41.0.7
 python-dotenv==1.0.0
 pydantic==2.5.0

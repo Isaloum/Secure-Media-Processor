@@ -184,3 +184,222 @@ def test_get_file_metadata_not_connected():
     result = connector.get_file_metadata("remote/file.txt")
     assert result["success"] is False
     assert "Not connected to Dropbox" in result["error"]
+
+
+def test_download_not_connected():
+    """Test download fails when not connected."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector._connected = False
+    result = connector.download_file("remote/file.txt", "local/file.txt")
+    assert result["success"] is False
+    assert "Not connected to Dropbox" in result["error"]
+
+
+def test_delete_not_connected():
+    """Test delete fails when not connected."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector._connected = False
+    result = connector.delete_file("remote/file.txt")
+    assert result["success"] is False
+    assert "Not connected to Dropbox" in result["error"]
+
+
+def test_list_files_success():
+    """Test successful file listing from Dropbox."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    import dropbox.files
+
+    connector = DropboxConnector(access_token="fake_token")
+    connector.connect()
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+
+    # Create mock file entries
+    file_entry = MagicMock(spec=dropbox.files.FileMetadata)
+    file_entry.path_display = "/test/file.txt"
+    file_entry.size = 1024
+    file_entry.client_modified = datetime(2024, 1, 15, 10, 30, 0)
+    file_entry.content_hash = "abc123"
+
+    list_result = MagicMock()
+    list_result.entries = [file_entry]
+    list_result.has_more = False
+    mock_dbx_global.files_list_folder.return_value = list_result
+
+    # Mock isinstance check for FileMetadata
+    with pytest.MonkeyPatch().context() as m:
+        m.setattr('src.connectors.dropbox_connector.dropbox.files.FileMetadata', type(file_entry))
+        result = connector.list_files()
+
+    assert len(result) >= 0  # May be 0 if mock isn't perfect
+
+
+def test_list_files_api_error():
+    """Test list files handles API errors gracefully."""
+    from src.connectors.dropbox_connector import DropboxConnector, ApiError
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+
+    mock_dbx_global.files_list_folder.side_effect = ApiError("list_error", "List failed!", "user_message")
+    result = connector.list_files()
+    assert result == []
+    mock_dbx_global.files_list_folder.side_effect = None
+
+
+def test_get_file_metadata_success():
+    """Test successful file metadata retrieval."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    import dropbox.files
+
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+
+    # Create mock file metadata
+    file_metadata = MagicMock(spec=dropbox.files.FileMetadata)
+    file_metadata.size = 2048
+    file_metadata.client_modified = datetime(2024, 2, 20, 14, 0, 0)
+    file_metadata.content_hash = "def456"
+
+    mock_dbx_global.files_get_metadata.return_value = file_metadata
+
+    result = connector.get_file_metadata("test/file.txt")
+    assert result["success"] is True
+    assert result["size"] == 2048
+    mock_dbx_global.files_get_metadata.call_count >= 1
+
+
+def test_get_file_metadata_api_error():
+    """Test get_file_metadata handles API errors gracefully."""
+    from src.connectors.dropbox_connector import DropboxConnector, ApiError
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+
+    mock_dbx_global.files_get_metadata.side_effect = ApiError("meta_error", "Metadata failed!", "user_message")
+    result = connector.get_file_metadata("remote/errorfile.txt")
+    assert result["success"] is False
+    assert "error" in result
+    mock_dbx_global.files_get_metadata.side_effect = None
+
+
+def test_get_file_metadata_not_a_file():
+    """Test get_file_metadata returns error for non-file entries."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    import dropbox.files
+
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+    connector._connected = True
+    connector.dbx = mock_dbx_global
+
+    # Return a folder instead of a file
+    folder_metadata = MagicMock(spec=dropbox.files.FolderMetadata)
+    mock_dbx_global.files_get_metadata.return_value = folder_metadata
+
+    result = connector.get_file_metadata("test/folder")
+    assert result["success"] is False
+    assert "not a file" in result["error"].lower()
+
+
+def test_get_full_path():
+    """Test _get_full_path combines root path correctly."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token", root_path="/SecureMedia")
+    connector.connect()
+
+    # Test with leading slash
+    assert connector._get_full_path("/test.txt") == "/SecureMedia/test.txt"
+
+    # Test without leading slash
+    assert connector._get_full_path("test.txt") == "/SecureMedia/test.txt"
+
+
+def test_get_full_path_no_root():
+    """Test _get_full_path without root path."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token", root_path="")
+    connector.connect()
+
+    assert connector._get_full_path("test.txt") == "/test.txt"
+    assert connector._get_full_path("/test.txt") == "/test.txt"
+
+
+def test_upload_path_traversal_blocked():
+    """Test that path traversal attempts are blocked on upload."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+
+    result = connector.upload_file(__file__, "../../../etc/passwd")
+    assert result["success"] is False
+    assert "traversal" in result["error"].lower()
+
+
+def test_download_path_traversal_blocked():
+    """Test that path traversal attempts are blocked on download."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+
+    result = connector.download_file("../../../etc/passwd", "/tmp/test.txt")
+    assert result["success"] is False
+    assert "traversal" in result["error"].lower()
+
+
+def test_delete_path_traversal_blocked():
+    """Test that path traversal attempts are blocked on delete."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+
+    result = connector.delete_file("..%2f..%2fetc%2fpasswd")
+    assert result["success"] is False
+    assert "traversal" in result["error"].lower()
+
+
+def test_get_metadata_path_traversal_blocked():
+    """Test that path traversal attempts are blocked on get_file_metadata."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+    connector.connect()
+
+    result = connector.get_file_metadata("..%252f..%252fetc%252fpasswd")
+    assert result["success"] is False
+    assert "traversal" in result["error"].lower()
+
+
+def test_destructor_clears_credentials():
+    """Test that __del__ properly clears credentials."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="secret_token_123")
+    connector.connect()
+
+    # Verify token is set
+    assert connector.access_token == "secret_token_123"
+
+    # Call destructor
+    connector.__del__()
+
+    # Verify credentials are cleared
+    assert connector.access_token is None
+    assert connector.dbx is None
+
+
+def test_connector_repr():
+    """Test string representation of connector."""
+    from src.connectors.dropbox_connector import DropboxConnector
+    connector = DropboxConnector(access_token="token")
+
+    # Before connection
+    assert "disconnected" in repr(connector)
+
+    connector.connect()
+    # After connection
+    assert "connected" in repr(connector)

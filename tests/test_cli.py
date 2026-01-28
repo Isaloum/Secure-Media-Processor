@@ -659,8 +659,9 @@ class TestInfoCommand:
         """Test info command with GPU available."""
         with patch('src.cli.GPUMediaProcessor') as mock:
             mock.return_value.get_device_info.return_value = {
-                'device': 'GPU',
+                'device': 'CUDA',  # Device type is CUDA, not GPU
                 'name': 'NVIDIA RTX 4090',
+                'vendor': 'NVIDIA',
                 'memory_total': 24.0,
                 'memory_allocated': 1.5,
                 'memory_cached': 0.5,
@@ -670,7 +671,7 @@ class TestInfoCommand:
             result = runner.invoke(cli, ['info'])
 
             assert result.exit_code == 0
-            assert 'GPU' in result.output
+            assert 'CUDA' in result.output
             assert 'NVIDIA RTX 4090' in result.output
             assert 'Total Memory' in result.output
             assert 'CUDA Version' in result.output

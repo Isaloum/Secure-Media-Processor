@@ -1,0 +1,119 @@
+# Secure Media Processor - Docker Compose Configuration
+# Usage:
+#   CPU:  docker-compose up smp
+#   GPU:  docker-compose up smp-gpu
+#   All:  docker-compose up
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # CPU Version (default)
+  # ==========================================================================
+  smp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: secure-media-processor:latest
+    container_name: smp
+    volumes:
+      # Mount directories for data persistence
+      - ./data/keys:/app/keys:rw
+      - ./data/media:/app/media_storage:rw
+      - ./data/temp:/app/temp:rw
+      # Mount input/output directories (customize as needed)
+      - ./input:/input:ro
+      - ./output:/output:rw
+    environment:
+      # AWS credentials (optional)
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME:-}
+      # GCP credentials (optional)
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME:-}
+      # Processing settings
+      - GPU_ENABLED=false
+      - BATCH_SIZE=${BATCH_SIZE:-32}
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+    # Override command for interactive use
+    # command: ["encrypt", "/input/file.jpg", "/output/file.enc"]
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  # ==========================================================================
+  # GPU Version (requires nvidia-container-toolkit)
+  # ==========================================================================
+  smp-gpu:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: secure-media-processor:gpu
+    container_name: smp-gpu
+    volumes:
+      - ./data/keys:/app/keys:rw
+      - ./data/media:/app/media_storage:rw
+      - ./data/temp:/app/temp:rw
+      - ./input:/input:ro
+      - ./output:/output:rw
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME:-}
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
+      - GCP_BUCKET_NAME=${GCP_BUCKET_NAME:-}
+      - GPU_ENABLED=true
+      - BATCH_SIZE=${BATCH_SIZE:-32}
+      - MAX_WORKERS=${MAX_WORKERS:-4}
+      - NVIDIA_VISIBLE_DEVICES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  # ==========================================================================
+  # Development Version (mounts source code)
+  # ==========================================================================
+  smp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: secure-media-processor:dev
+    container_name: smp-dev
+    volumes:
+      # Mount source for live development
+      - ./src:/app/src:ro
+      - ./main.py:/app/main.py:ro
+      - ./tests:/app/tests:ro
+      # Data directories
+      - ./data/keys:/app/keys:rw
+      - ./data/media:/app/media_storage:rw
+      - ./data/temp:/app/temp:rw
+      - ./input:/input:ro
+      - ./output:/output:rw
+    environment:
+      - GPU_ENABLED=false
+      - PYTHONDONTWRITEBYTECODE=0  # Allow bytecode for faster dev
+    command: ["--help"]
+    stdin_open: true
+    tty: true
+
+# ==========================================================================
+# Volumes for data persistence
+# ==========================================================================
+volumes:
+  keys:
+    driver: local
+  media:
+    driver: local
+  temp:
+    driver: local

@@ -85,11 +85,21 @@ def google_drive_monkeypatch(monkeypatch):
     mock_files_list.execute.return_value = mock_list_result
     mock_gdrive_service_global.files.return_value.list.return_value = mock_files_list
     
+    # Create a mock HttpError class that matches the real one
+    class MockHttpError(Exception):
+        """Mock HttpError for testing."""
+        def __init__(self, resp=None, content=b'', uri=''):
+            self.resp = resp or MagicMock(status=500)
+            self.content = content
+            self.uri = uri
+            super().__init__(str(content))
+
     # Patch Google Drive SDK
     monkeypatch.setattr('src.connectors.google_drive_connector.service_account', mock_service_account)
     monkeypatch.setattr('src.connectors.google_drive_connector.build', mock_build)
     monkeypatch.setattr('src.connectors.google_drive_connector.GOOGLE_AVAILABLE', True)
     monkeypatch.setattr('src.connectors.google_drive_connector.GoogleAuthError', Exception)
+    monkeypatch.setattr('src.connectors.google_drive_connector.HttpError', MockHttpError)
     
     # Mock MediaFileUpload
     mock_media_upload = MagicMock()
@@ -367,78 +377,84 @@ def test_gdrive_get_file_metadata_not_connected():
 
 def test_gdrive_upload_api_error():
     """Test upload handles API errors properly."""
-    from src.connectors.google_drive_connector import GoogleDriveConnector
+    from src.connectors.google_drive_connector import GoogleDriveConnector, HttpError
     import tempfile
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
         tmp.write('{"type": "service_account"}')
         tmp_path = tmp.name
-    
+
     try:
         connector = GoogleDriveConnector(credentials_path=tmp_path)
         connector.connect()
-        
-        # Force create to raise exception
-        mock_gdrive_service_global.files.return_value.create.side_effect = Exception("API Error!")
-        
+
+        # Force create to raise HttpError
+        mock_gdrive_service_global.files.return_value.create.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=500), content=b"API Error!"
+        )
+
         result = connector.upload_file(__file__, "test_file.txt")
         assert result["success"] is False
         assert "error" in result
-        
+
         # Clean up
-        mock_gdrive_service_global.files.return_value.create.side_effect = None
+        mock_gdrive_service_global.files.return_value.create.return_value.execute.side_effect = None
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
 
 def test_gdrive_download_api_error():
     """Test download handles API errors properly."""
-    from src.connectors.google_drive_connector import GoogleDriveConnector
+    from src.connectors.google_drive_connector import GoogleDriveConnector, HttpError
     import tempfile
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
         tmp.write('{"type": "service_account"}')
         tmp_path = tmp.name
-    
+
     try:
         connector = GoogleDriveConnector(credentials_path=tmp_path)
         connector.connect()
-        
-        # Force get to raise exception  
-        mock_gdrive_service_global.files.return_value.get.side_effect = Exception("Download Error!")
-        
+
+        # Force get to raise HttpError
+        mock_gdrive_service_global.files.return_value.get.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=404), content=b"Download Error!"
+        )
+
         result = connector.download_file("test_file.txt", "/tmp/local.txt")
         assert result["success"] is False
         assert "error" in result
-        
+
         # Clean up
-        mock_gdrive_service_global.files.return_value.get.side_effect = None
+        mock_gdrive_service_global.files.return_value.get.return_value.execute.side_effect = None
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 
 
 def test_gdrive_delete_api_error():
     """Test delete handles API errors properly."""
-    from src.connectors.google_drive_connector import GoogleDriveConnector
+    from src.connectors.google_drive_connector import GoogleDriveConnector, HttpError
     import tempfile
-    
+
     with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
         tmp.write('{"type": "service_account"}')
         tmp_path = tmp.name
-    
+
     try:
         connector = GoogleDriveConnector(credentials_path=tmp_path)
         connector.connect()
-        
-        # Force delete to raise exception
-        mock_gdrive_service_global.files.return_value.delete.side_effect = Exception("Delete Error!")
-        
+
+        # Force delete to raise HttpError
+        mock_gdrive_service_global.files.return_value.delete.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=403), content=b"Delete Error!"
+        )
+
         result = connector.delete_file("test_file.txt")
         assert result["success"] is False
         assert "error" in result
-        
+
         # Clean up
-        mock_gdrive_service_global.files.return_value.delete.side_effect = None
+        mock_gdrive_service_global.files.return_value.delete.return_value.execute.side_effect = None
     finally:
         Path(tmp_path).unlink(missing_ok=True)
 

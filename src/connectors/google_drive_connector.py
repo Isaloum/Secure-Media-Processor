@@ -14,10 +14,13 @@ try:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-    from google.auth.exceptions import GoogleAuthError
+    from googleapiclient.errors import HttpError
+    from google.auth.exceptions import GoogleAuthError, TransportError
     GOOGLE_AVAILABLE = True
 except ImportError:
     GOOGLE_AVAILABLE = False
+    HttpError = None  # type: ignore
+    TransportError = None  # type: ignore
 
 from .base_connector import CloudConnector
 
@@ -194,13 +197,19 @@ class GoogleDriveConnector(CloudConnector):
                 'timestamp': file.get('createdTime')
             }
             
-        except Exception as e:
-            logger.error(f"Google Drive upload failed: {e}")
+        except HttpError as e:
+            logger.error(f"Google Drive API error during upload: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': f"API error: {e}"
             }
-    
+        except (IOError, OSError) as e:
+            logger.error(f"File I/O error during upload: {e}")
+            return {
+                'success': False,
+                'error': f"File error: {e}"
+            }
+
     def download_file(
         self,
         remote_path: str,
@@ -277,13 +286,19 @@ class GoogleDriveConnector(CloudConnector):
                 'checksum_verified': checksum_verified
             }
             
-        except Exception as e:
-            logger.error(f"Google Drive download failed: {e}")
+        except HttpError as e:
+            logger.error(f"Google Drive API error during download: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': f"API error: {e}"
             }
-    
+        except (IOError, OSError) as e:
+            logger.error(f"File I/O error during download: {e}")
+            return {
+                'success': False,
+                'error': f"File error: {e}"
+            }
+
     def delete_file(self, remote_path: str) -> Dict[str, Any]:
         """Delete a file from Google Drive.
         
@@ -317,14 +332,14 @@ class GoogleDriveConnector(CloudConnector):
                 'success': True,
                 'remote_path': remote_path
             }
-            
-        except Exception as e:
-            logger.error(f"Google Drive deletion failed: {e}")
+
+        except HttpError as e:
+            logger.error(f"Google Drive API error during deletion: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': f"API error: {e}"
             }
-    
+
     def list_files(self, prefix: str = '') -> List[Dict[str, Any]]:
         """List files in Google Drive.
         
@@ -364,11 +379,11 @@ class GoogleDriveConnector(CloudConnector):
                 })
             
             return files
-            
-        except Exception as e:
-            logger.error(f"Google Drive list operation failed: {e}")
+
+        except HttpError as e:
+            logger.error(f"Google Drive API error during list operation: {e}")
             return []
-    
+
     def get_file_metadata(self, remote_path: str) -> Dict[str, Any]:
         """Get metadata for a file in Google Drive.
         
@@ -406,14 +421,14 @@ class GoogleDriveConnector(CloudConnector):
                 'metadata': file_metadata.get('properties', {}),
                 'checksum': file_metadata.get('md5Checksum', '')
             }
-            
-        except Exception as e:
-            logger.error(f"Failed to get Google Drive metadata: {e}")
+
+        except HttpError as e:
+            logger.error(f"Google Drive API error getting metadata: {e}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': f"API error: {e}"
             }
-    
+
     def _get_file_id(self, name_or_id: str) -> Optional[str]:
         """Get file ID by name or return ID if already an ID.
         
@@ -427,25 +442,26 @@ class GoogleDriveConnector(CloudConnector):
         try:
             self.service.files().get(fileId=name_or_id, fields='id').execute()
             return name_or_id
-        except Exception:
+        except HttpError:
+            # Not found as ID, try searching by name
             pass
-        
+
         # Search by name
         try:
             query = f"name='{name_or_id}' and trashed=false"
             if self.folder_id:
                 query += f" and '{self.folder_id}' in parents"
-            
+
             results = self.service.files().list(
                 q=query,
                 fields='files(id)',
                 pageSize=1
             ).execute()
-            
+
             files = results.get('files', [])
             if files:
                 return files[0]['id']
-        except Exception:
+        except HttpError:
             pass
-        
+
         return None
