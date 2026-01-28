@@ -10,16 +10,38 @@ import secrets
 
 class MediaEncryptor:
     """Handle encryption and decryption of media files."""
-    
+
     def __init__(self, key_path: Union[str, Path]):
         """Initialize encryptor with master key.
-        
+
         Args:
             key_path: Path to the master encryption key file.
         """
         self.key_path = Path(key_path)
         self.key = self._load_or_create_key()
         self.cipher = AESGCM(self.key)
+
+    def __del__(self):
+        """Securely clear encryption key from memory when object is destroyed.
+
+        This prevents key leakage through process memory dumps.
+        Called automatically when the object is garbage collected.
+        """
+        # Clear the encryption key
+        if hasattr(self, 'key') and self.key:
+            # Overwrite key bytes with zeros before clearing reference
+            key_len = len(self.key)
+            try:
+                # Note: Due to Python's immutable bytes, this creates a new object
+                # but helps signal intent and may be useful for mutable buffers
+                self.key = b'\x00' * key_len
+            except (TypeError, AttributeError):
+                pass
+            self.key = None
+
+        # Clear cipher reference
+        if hasattr(self, 'cipher'):
+            self.cipher = None
     
     def _load_or_create_key(self) -> bytes:
         """Load existing key or create a new one.

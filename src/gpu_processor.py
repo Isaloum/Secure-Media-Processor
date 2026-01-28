@@ -10,8 +10,54 @@ import numpy as np
 from pathlib import Path
 from typing import Union, Optional, Tuple, List, TYPE_CHECKING
 import logging
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
+
+
+class ImageDimensions(BaseModel):
+    """Validated image dimensions with constraints."""
+
+    width: int = Field(..., gt=0, le=65536, description="Image width in pixels")
+    height: int = Field(..., gt=0, le=65536, description="Image height in pixels")
+
+    @field_validator('width', 'height')
+    @classmethod
+    def validate_dimension(cls, v: int) -> int:
+        """Ensure dimensions are positive integers within reasonable bounds."""
+        if v <= 0:
+            raise ValueError(f"Dimension must be positive, got {v}")
+        if v > 65536:
+            raise ValueError(f"Dimension too large (max 65536), got {v}")
+        return v
+
+    def as_tuple(self) -> Tuple[int, int]:
+        """Return dimensions as (width, height) tuple."""
+        return (self.width, self.height)
+
+
+class FilterConfig(BaseModel):
+    """Validated filter configuration."""
+
+    filter_type: str = Field(
+        default="blur",
+        description="Type of filter to apply"
+    )
+    intensity: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=10.0,
+        description="Filter intensity (0.0 to 10.0)"
+    )
+
+    @field_validator('filter_type')
+    @classmethod
+    def validate_filter_type(cls, v: str) -> str:
+        """Validate filter type is supported."""
+        supported = {'blur', 'sharpen', 'edge', 'denoise'}
+        if v.lower() not in supported:
+            raise ValueError(f"Unsupported filter type: {v}. Supported: {supported}")
+        return v.lower()
 
 # PyTorch is optional - try to import, fall back gracefully
 TORCH_AVAILABLE = False
@@ -140,12 +186,19 @@ class GPUMediaProcessor:
         Args:
             input_path: Path to input image.
             output_path: Path to save resized image.
-            size: Target size (width, height).
+            size: Target size (width, height). Must be positive integers.
             maintain_aspect_ratio: Whether to maintain aspect ratio.
 
         Returns:
             Dictionary containing processing metadata.
+
+        Raises:
+            ValueError: If size dimensions are invalid (zero, negative, or too large).
         """
+        # Validate dimensions using Pydantic model
+        validated_dims = ImageDimensions(width=size[0], height=size[1])
+        size = validated_dims.as_tuple()
+
         input_path = Path(input_path)
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -279,11 +332,19 @@ class GPUMediaProcessor:
             input_path: Path to input image.
             output_path: Path to save filtered image.
             filter_type: Type of filter ('blur', 'sharpen', 'edge', 'denoise').
-            intensity: Filter intensity (0.0 to 2.0).
+            intensity: Filter intensity (0.0 to 10.0).
 
         Returns:
             Dictionary containing processing metadata.
+
+        Raises:
+            ValueError: If filter_type is not supported or intensity is out of range.
         """
+        # Validate filter configuration using Pydantic model
+        validated_config = FilterConfig(filter_type=filter_type, intensity=intensity)
+        filter_type = validated_config.filter_type
+        intensity = validated_config.intensity
+
         input_path = Path(input_path)
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -362,12 +423,19 @@ class GPUMediaProcessor:
         else:
             write_png(filtered.cpu(), str(output_path))
 
-        return {
+        # Store results before cleanup
+        result = {
             'filter_type': filter_type,
             'intensity': intensity,
             'device': str(self.device),
             'output_path': str(output_path)
         }
+
+        # Clear GPU memory to prevent memory leaks
+        del image, filtered
+        self._clear_gpu_cache()
+
+        return result
 
     def _apply_filter_cpu(self,
                           input_path: Path,
@@ -496,6 +564,9 @@ class GPUMediaProcessor:
         # Release resources
         cap.release()
         out.release()
+
+        # Clear GPU memory after video processing
+        self._clear_gpu_cache()
 
         return {
             'original_size': (width, height),
