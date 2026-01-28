@@ -765,11 +765,237 @@ def predict_cancer(input_path: str, model: str, model_type: str, gpu: bool,
         raise click.Abort()
 
 
+@medical.command('segment')
+@click.argument('input_path', type=click.Path(exists=True))
+@click.argument('output_path', type=click.Path())
+@click.option('--model', type=click.Path(exists=True), help='Path to trained U-Net model (.pt or .pth)')
+@click.option('--variant', type=click.Choice(['standard', 'attention', 'residual']),
+              default='standard', help='U-Net architecture variant')
+@click.option('--threshold', type=float, default=0.5, help='Binary mask threshold (0-1)')
+@click.option('--gpu/--no-gpu', default=True, help='Use GPU for inference')
+@click.option('--save-probability', is_flag=True, help='Save probability map alongside mask')
+@click.option('--output-format', type=click.Choice(['png', 'npy', 'both']),
+              default='png', help='Output format for segmentation mask')
+def segment_image(input_path: str, output_path: str, model: Optional[str], variant: str,
+                  threshold: float, gpu: bool, save_probability: bool, output_format: str):
+    """Run U-Net segmentation on medical image for tumor/lesion detection."""
+    from src.unet_segmentation import (
+        UNetSegmentation, SegmentationConfig, UNetVariant, check_segmentation_available
+    )
+    import numpy as np
+
+    # Check dependencies
+    seg_status = check_segmentation_available()
+    if not seg_status['pytorch']:
+        click.echo(f"{Fore.RED}PyTorch not available. Install with: pip install torch{Style.RESET_ALL}")
+        raise click.Abort()
+
+    if gpu and not seg_status['gpu']:
+        click.echo(f"{Fore.YELLOW}GPU not available, using CPU{Style.RESET_ALL}")
+        gpu = False
+
+    click.echo(f"{Fore.CYAN}Running U-Net segmentation...{Style.RESET_ALL}\n")
+
+    try:
+        # Configure segmentation
+        variant_map = {
+            'standard': UNetVariant.STANDARD,
+            'attention': UNetVariant.ATTENTION,
+            'residual': UNetVariant.RESIDUAL
+        }
+
+        config = SegmentationConfig(
+            variant=variant_map[variant],
+            use_gpu=gpu,
+            threshold=threshold,
+            apply_post_processing=True
+        )
+
+        # Create pipeline
+        pipeline = UNetSegmentation(config)
+
+        # Load model if provided
+        if model:
+            pipeline.load_model(model)
+            click.echo(f"{Fore.GREEN}Loaded model:{Style.RESET_ALL} {model}")
+        else:
+            pipeline.create_model()
+            click.echo(f"{Fore.YELLOW}Using untrained model (demo mode){Style.RESET_ALL}")
+
+        # Load input image
+        input_path_obj = Path(input_path)
+
+        if input_path_obj.suffix.lower() in ['.dcm', '.dicom'] or input_path_obj.is_dir():
+            from src.dicom_processor import DICOMProcessor, check_dicom_available
+            if not check_dicom_available():
+                click.echo(f"{Fore.RED}DICOM support not available{Style.RESET_ALL}")
+                raise click.Abort()
+
+            result_dict = pipeline.segment_from_dicom(input_path, preprocess=True)
+
+            if 'results' in result_dict:
+                # Volume segmentation
+                results = result_dict['results']
+                click.echo(f"\n{Fore.GREEN}Volume Segmentation Complete{Style.RESET_ALL}")
+                click.echo(f"  Slices processed: {result_dict['num_slices']}")
+                click.echo(f"  Total segmented pixels: {result_dict['total_volume_pixels']:,}")
+                click.echo(f"  Slice with max area: #{result_dict['max_area_slice'] + 1}")
+
+                # Save volume mask
+                volume_mask = np.stack([r.mask for r in results], axis=0)
+                output_path_obj = Path(output_path)
+
+                if output_format in ['npy', 'both']:
+                    npy_path = output_path_obj.with_suffix('.npy')
+                    np.save(npy_path, volume_mask)
+                    click.echo(f"  Mask saved: {npy_path}")
+
+                if output_format in ['png', 'both']:
+                    # Save middle slice as PNG
+                    from PIL import Image
+                    mid_idx = volume_mask.shape[0] // 2
+                    png_path = output_path_obj.with_suffix('.png')
+                    Image.fromarray((volume_mask[mid_idx] * 255).astype(np.uint8)).save(png_path)
+                    click.echo(f"  Middle slice PNG: {png_path}")
+
+                if save_probability:
+                    prob_volume = np.stack([r.probability_map for r in results], axis=0)
+                    prob_path = output_path_obj.with_name(f"{output_path_obj.stem}_prob.npy")
+                    np.save(prob_path, prob_volume)
+                    click.echo(f"  Probability map: {prob_path}")
+            else:
+                # Single slice
+                result = result_dict['result']
+                _save_segmentation_result(result, output_path, output_format, save_probability)
+        else:
+            # Load standard image
+            from PIL import Image
+            img = Image.open(input_path).convert('L')
+            image = np.array(img, dtype=np.float32)
+
+            # Run segmentation
+            result = pipeline.segment(image)
+            _save_segmentation_result(result, output_path, output_format, save_probability)
+
+        click.echo(f"\n{Fore.GREEN}Segmentation complete!{Style.RESET_ALL}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Segmentation failed: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
+def _save_segmentation_result(result, output_path: str, output_format: str, save_probability: bool):
+    """Helper to save segmentation result."""
+    from PIL import Image
+    import numpy as np
+
+    output_path_obj = Path(output_path)
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+    click.echo(f"\n{Fore.GREEN}Segmentation Results{Style.RESET_ALL}")
+    click.echo(f"  Regions found: {result.num_regions}")
+    click.echo(f"  Total area: {result.total_area:,} pixels")
+    click.echo(f"  Threshold: {result.metadata.get('threshold', 0.5)}")
+    click.echo(f"  Device: {result.metadata.get('device', 'N/A')}")
+
+    if result.regions:
+        click.echo(f"\n{Fore.YELLOW}Region Details:{Style.RESET_ALL}")
+        for i, region in enumerate(result.regions[:5], 1):
+            click.echo(f"  Region {i}: area={region['area']:,} px, centroid={region.get('centroid', 'N/A')}")
+        if len(result.regions) > 5:
+            click.echo(f"  ... and {len(result.regions) - 5} more regions")
+
+    # Save mask
+    if output_format in ['npy', 'both']:
+        npy_path = output_path_obj.with_suffix('.npy')
+        np.save(npy_path, result.mask)
+        click.echo(f"\n  Mask (npy): {npy_path}")
+
+    if output_format in ['png', 'both']:
+        png_path = output_path_obj.with_suffix('.png')
+        Image.fromarray((result.mask * 255).astype(np.uint8)).save(png_path)
+        click.echo(f"  Mask (png): {png_path}")
+
+    if save_probability:
+        prob_path = output_path_obj.with_name(f"{output_path_obj.stem}_prob.npy")
+        np.save(prob_path, result.probability_map)
+        click.echo(f"  Probability map: {prob_path}")
+
+
+@medical.command('evaluate')
+@click.argument('prediction_path', type=click.Path(exists=True))
+@click.argument('ground_truth_path', type=click.Path(exists=True))
+@click.option('--surface-metrics', is_flag=True, help='Include Hausdorff and surface distance metrics')
+def evaluate_segmentation(prediction_path: str, ground_truth_path: str, surface_metrics: bool):
+    """Evaluate segmentation against ground truth mask."""
+    from src.unet_segmentation import SegmentationMetrics
+    import numpy as np
+    from PIL import Image
+
+    click.echo(f"{Fore.CYAN}Evaluating segmentation...{Style.RESET_ALL}\n")
+
+    try:
+        # Load masks
+        pred_path = Path(prediction_path)
+        gt_path = Path(ground_truth_path)
+
+        if pred_path.suffix == '.npy':
+            pred = np.load(prediction_path)
+        else:
+            pred = np.array(Image.open(prediction_path).convert('L')) > 127
+
+        if gt_path.suffix == '.npy':
+            gt = np.load(ground_truth_path)
+        else:
+            gt = np.array(Image.open(ground_truth_path).convert('L')) > 127
+
+        # Calculate metrics
+        metrics = SegmentationMetrics.evaluate(pred, gt, include_surface_metrics=surface_metrics)
+
+        click.echo(f"{Fore.GREEN}{'=' * 50}{Style.RESET_ALL}")
+        click.echo(f"{Fore.GREEN}SEGMENTATION METRICS{Style.RESET_ALL}")
+        click.echo(f"{Fore.GREEN}{'=' * 50}{Style.RESET_ALL}\n")
+
+        click.echo(f"{Fore.YELLOW}Overlap Metrics:{Style.RESET_ALL}")
+        click.echo(f"  Dice Coefficient: {metrics['dice']:.4f}")
+        click.echo(f"  IoU (Jaccard):    {metrics['iou']:.4f}")
+
+        click.echo(f"\n{Fore.YELLOW}Classification Metrics:{Style.RESET_ALL}")
+        click.echo(f"  Precision:    {metrics['precision']:.4f}")
+        click.echo(f"  Recall:       {metrics['recall']:.4f}")
+        click.echo(f"  Specificity:  {metrics['specificity']:.4f}")
+
+        if surface_metrics:
+            click.echo(f"\n{Fore.YELLOW}Surface Metrics:{Style.RESET_ALL}")
+            hd = metrics.get('hausdorff_distance', float('inf'))
+            asd = metrics.get('average_surface_distance', float('inf'))
+            click.echo(f"  Hausdorff Distance: {hd:.2f} px" if hd != float('inf') else "  Hausdorff Distance: N/A")
+            click.echo(f"  Avg Surface Dist:   {asd:.2f} px" if asd != float('inf') else "  Avg Surface Dist: N/A")
+
+        # Quality assessment
+        dice = metrics['dice']
+        if dice >= 0.9:
+            quality = f"{Fore.GREEN}Excellent{Style.RESET_ALL}"
+        elif dice >= 0.8:
+            quality = f"{Fore.GREEN}Good{Style.RESET_ALL}"
+        elif dice >= 0.7:
+            quality = f"{Fore.YELLOW}Acceptable{Style.RESET_ALL}"
+        else:
+            quality = f"{Fore.RED}Poor{Style.RESET_ALL}"
+
+        click.echo(f"\n{Fore.YELLOW}Overall Quality:{Style.RESET_ALL} {quality}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Evaluation failed: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
 @medical.command('info')
 def medical_info():
     """Display medical imaging capabilities and dependencies."""
     from src.dicom_processor import check_dicom_available
     from src.ml_inference import check_ml_available
+    from src.unet_segmentation import check_segmentation_available
 
     click.echo(f"{Fore.CYAN}Medical Imaging Capabilities{Style.RESET_ALL}\n")
 
@@ -793,6 +1019,14 @@ def medical_info():
     gpu_status = f"{Fore.GREEN}Available{Style.RESET_ALL}" if ml_status['gpu'] else f"{Fore.YELLOW}CPU only{Style.RESET_ALL}"
     click.echo(f"  GPU Acceleration: {gpu_status}")
 
+    # U-Net Segmentation
+    seg_status = check_segmentation_available()
+    click.echo(f"\n{Fore.YELLOW}U-Net Segmentation:{Style.RESET_ALL}")
+    click.echo(f"  PyTorch: {f'{Fore.GREEN}Available{Style.RESET_ALL}' if seg_status['pytorch'] else f'{Fore.RED}Not installed{Style.RESET_ALL}'}")
+    click.echo(f"  scipy: {f'{Fore.GREEN}Available{Style.RESET_ALL}' if seg_status['scipy'] else f'{Fore.RED}Not installed{Style.RESET_ALL}'}")
+    click.echo(f"  scikit-image: {f'{Fore.GREEN}Available{Style.RESET_ALL}' if seg_status['scikit-image'] else f'{Fore.RED}Not installed{Style.RESET_ALL}'}")
+    click.echo(f"  GPU: {f'{Fore.GREEN}Available{Style.RESET_ALL}' if seg_status['gpu'] else f'{Fore.YELLOW}CPU only{Style.RESET_ALL}'}")
+
     # Preprocessing dependencies
     click.echo(f"\n{Fore.YELLOW}Preprocessing:{Style.RESET_ALL}")
 
@@ -809,7 +1043,7 @@ def medical_info():
         click.echo(f"  scikit-image: {Fore.RED}Not installed{Style.RESET_ALL}")
 
     click.echo(f"\n{Fore.CYAN}Install all medical dependencies:{Style.RESET_ALL}")
-    click.echo(f"  pip install pydicom nibabel scipy scikit-image")
+    click.echo(f"  pip install pydicom nibabel scipy scikit-image torch")
 
 
 if __name__ == '__main__':

@@ -42,9 +42,16 @@ def main():
         print("Valid types: FREE, PRO, ENTERPRISE")
         sys.exit(1)
 
-    # Create license manager with production secret
-    # TODO: In production, use a secure secret from environment
-    manager = LicenseManager(secret_key="PRODUCTION_SECRET_KEY_CHANGE_ME")
+    # Create license manager with production secret from environment
+    import os
+    secret_key = os.environ.get('SMP_LICENSE_SECRET')
+    if not secret_key:
+        print("WARNING: SMP_LICENSE_SECRET environment variable not set!")
+        print("Using default key - NOT SAFE FOR PRODUCTION")
+        print("Set with: export SMP_LICENSE_SECRET='your-secure-secret-key'\n")
+        secret_key = "DEVELOPMENT_ONLY_DEFAULT_KEY"
+
+    manager = LicenseManager(secret_key=secret_key)
 
     # Generate license
     license = manager.create_license(

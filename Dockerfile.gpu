@@ -1,0 +1,91 @@
+# Secure Media Processor - GPU Version (NVIDIA CUDA)
+# Requires nvidia-container-toolkit on host
+
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04 as builder
+
+# Install Python and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    python3-pip \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Create virtual environment
+RUN python3.11 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+COPY requirements-gpu.txt* .
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Install GPU dependencies (PyTorch with CUDA)
+RUN pip install --no-cache-dir \
+    torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 || \
+    pip install --no-cache-dir torch torchvision torchaudio
+
+# Install optional medical imaging dependencies
+RUN pip install --no-cache-dir pydicom nibabel scipy scikit-image || true
+
+# ============================================================================
+# Stage 2: Runtime
+# ============================================================================
+FROM nvidia/cuda:12.1-runtime-ubuntu22.04 as runtime
+
+# Install Python runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-venv \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean \
+    && ln -s /usr/bin/python3.11 /usr/bin/python
+
+# Security: Create non-root user
+RUN groupadd -r smp && useradd -r -g smp smp
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy application code
+COPY --chown=smp:smp src/ ./src/
+COPY --chown=smp:smp main.py .
+COPY --chown=smp:smp scripts/ ./scripts/
+
+# Create directories with secure permissions
+RUN mkdir -p /app/keys /app/media_storage /app/temp && \
+    chown -R smp:smp /app && \
+    chmod 700 /app/keys /app/temp
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    GPU_ENABLED=true \
+    TEMP_PATH=/app/temp \
+    LOCAL_STORAGE_PATH=/app/media_storage \
+    MASTER_KEY_PATH=/app/keys/master.key \
+    NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Switch to non-root user
+USER smp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "from src.encryption import MediaEncryptor; print('OK')" || exit 1
+
+# Default command: show help
+ENTRYPOINT ["python", "main.py"]
+CMD ["--help"]
