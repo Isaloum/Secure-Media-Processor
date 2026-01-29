@@ -1,51 +1,62 @@
-"""ML Inference package for medical image analysis.
+"""ML Inference package for Medical Image Analysis.
 
-This package provides ML inference capabilities:
-- pipeline: Main inference pipeline for cancer prediction
-- Model loading for PyTorch and ONNX models
-- Batch processing and ensembles
+This package provides a framework for running trained ML models
+on medical images, particularly for cancer prediction from MRI.
+
+Modules:
+    config: Configuration classes and enums
+    loaders: Model loading and inference engines
+    pipeline: End-to-end prediction pipelines
+
+Features:
+    - Load PyTorch/ONNX models
+    - GPU-accelerated inference
+    - Batch processing
+    - Probability outputs and heatmaps
+    - Model ensemble support
 
 Example:
     >>> from src.medical.inference import CancerPredictionPipeline, ModelConfig
     >>> config = ModelConfig(model_path='model.pt')
     >>> pipeline = CancerPredictionPipeline(config)
-    >>> result = pipeline.predict(image)
+    >>> result = pipeline.predict_single(image)
 """
 
-from .pipeline import (
-    # Enums
+from .config import (
     ModelType,
     PredictionType,
-    # Config
     ModelConfig,
     PredictionResult,
-    # Inference classes
+    check_ml_available,
+)
+
+from .loaders import (
     BaseModelInference,
     PyTorchInference,
     ONNXInference,
-    # Pipeline
-    CancerPredictionPipeline,
     ModelEnsemble,
-    # Availability checks
     TORCH_AVAILABLE,
     ONNX_AVAILABLE,
 )
 
+from .pipeline import (
+    CancerPredictionPipeline,
+)
+
 __all__ = [
-    # Enums
+    # Config
     'ModelType',
     'PredictionType',
-    # Config
     'ModelConfig',
     'PredictionResult',
-    # Inference
+    'check_ml_available',
+    # Loaders
     'BaseModelInference',
     'PyTorchInference',
     'ONNXInference',
-    # Pipeline
-    'CancerPredictionPipeline',
     'ModelEnsemble',
-    # Flags
     'TORCH_AVAILABLE',
     'ONNX_AVAILABLE',
+    # Pipeline
+    'CancerPredictionPipeline',
 ]

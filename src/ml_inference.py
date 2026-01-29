@@ -22,6 +22,7 @@ from src.medical.inference import (
     # Availability checks
     TORCH_AVAILABLE,
     ONNX_AVAILABLE,
+    check_ml_available,
 )
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     'ModelEnsemble',
     'TORCH_AVAILABLE',
     'ONNX_AVAILABLE',
+    'check_ml_available',
 ]
