@@ -2,338 +2,249 @@
 
 <div align="center">
 
-**🔒 Professional-grade media processing with military-grade encryption, GPU acceleration, and multi-cloud storage integration**
+**A secure data pipeline for transferring sensitive data from cloud to local GPU processing**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Security: AES-256-GCM](https://img.shields.io/badge/security-AES--256--GCM-green.svg)](https://en.wikipedia.org/wiki/Galois/Counter_Mode)
 [![Tests](https://github.com/Isaloum/Secure-Media-Processor/actions/workflows/python-tests.yml/badge.svg)](https://github.com/Isaloum/Secure-Media-Processor/actions/workflows/python-tests.yml)
 [![codecov](https://codecov.io/gh/Isaloum/Secure-Media-Processor/branch/main/graph/badge.svg)](https://codecov.io/gh/Isaloum/Secure-Media-Processor)
-
-*Privacy-first • GPU-accelerated • Cloud-ready • Production-tested*
+[![PyPI version](https://badge.fury.io/py/secure-media-processor.svg)](https://badge.fury.io/py/secure-media-processor)
 
 </div>
 
 ---
 
-## 🌟 Overview
+## The Problem
 
-Secure Media Processor is a production-ready, enterprise-grade solution for securely processing, encrypting, and storing media files across multiple cloud providers. Built with privacy and security as core principles, it offers seamless integration with AWS S3, Google Drive, and Dropbox, while maintaining complete local control over your data.
+You have sensitive data (medical images, confidential documents, research data) stored in the cloud. You need to process it on your local GPU workstation. **How do you transfer it securely?**
 
-### Why Choose Secure Media Processor?
+Traditional approaches leave data vulnerable:
+- Cloud providers can access unencrypted data
+- Data sits decrypted during processing
+- No audit trail for compliance (HIPAA, GDPR)
+- Sensitive files left on disk after processing
 
-- ✅ **Zero-Trust Architecture**: All encryption happens locally before cloud upload
-- ✅ **Plug-and-Play Cloud Connectors**: Switch between S3, Google Drive, and Dropbox effortlessly
-- ✅ **Production-Ready**: Modular design, comprehensive error handling, and extensive logging
-- ✅ **Performance-Optimized**: GPU-accelerated processing for blazing-fast operations
-- ✅ **Developer-Friendly**: Clean API, comprehensive documentation, and extensible architecture
+## The Solution
 
-## ✨ Key Features
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│   [Hospital/Cloud]  ══════════════►  [Your GPU Workstation]                │
+│                           │                                                 │
+│                     ┌─────┴─────┐                                           │
+│                     │ ENCRYPTED │                                           │
+│                     │  SECURE   │                                           │
+│                     │ PIPELINE  │                                           │
+│                     └───────────┘                                           │
+│                                                                             │
+│   • Data encrypted BEFORE leaving source                                   │
+│   • Keys NEVER leave your workstation                                      │
+│   • Decryption ONLY on your local machine                                  │
+│   • Audit trail for compliance                                             │
+│   • Secure deletion after processing                                       │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
-### 🔐 Security & Privacy
-- **Military-Grade Encryption**: AES-256-GCM authenticated encryption
-- **Local Processing**: All sensitive operations happen on your machine
-- **Secure Key Management**: Protected key storage with restricted permissions
-- **Integrity Verification**: SHA-256 checksums ensure data integrity
-- **Secure Deletion**: Multi-pass overwrite before file removal
+**Secure Media Processor** is a secure pipeline that ensures sensitive data is protected at every stage—from cloud storage to local GPU processing and cleanup.
 
-### ☁️ Multi-Cloud Storage
-- **AWS S3**: Full S3 integration with server-side encryption
-- **Google Drive**: Native Google Drive API support
-- **Dropbox**: Seamless Dropbox integration
-- **Unified Interface**: Switch providers without changing your code
-- **Connector Manager**: Manage multiple cloud connections simultaneously
+## Key Features
 
-### ⚡ High-Performance Processing
-- **GPU Acceleration**: CUDA-powered image and video processing
-- **Batch Operations**: Process multiple files efficiently
-- **Smart Fallback**: Automatic CPU fallback when GPU unavailable
-- **Optimized Pipelines**: Minimal overhead, maximum throughput
+### End-to-End Encryption
+- **AES-256-GCM** authenticated encryption
+- **ECDH key exchange** for multi-party transfers
+- **Zero-knowledge mode** — cloud provider never sees plaintext
 
-### 🛠️ Developer Experience
-- **Modular Architecture**: Clean separation of concerns
-- **Extensible Design**: Easy to add new cloud providers or features
-- **Comprehensive Logging**: Track every operation for debugging and auditing
-- **Type Hints**: Full type annotations for better IDE support
-- **Well-Documented**: Inline documentation and usage examples
+### Multi-Cloud Support
+- AWS S3
+- Google Drive
+- Dropbox
+- Azure Blob Storage (coming soon)
 
-## 📋 Requirements
+### Compliance Ready
+- **HIPAA/GDPR** compliant audit logging
+- Immutable audit trail with cryptographic verification
+- Configurable retention policies
 
-- **Python**: 3.8 or higher
-- **GPU** (Optional): NVIDIA GPU with CUDA support for accelerated processing
-- **Cloud Accounts** (Optional): AWS, Google Cloud, or Dropbox accounts for cloud storage
+### Secure by Default
+- Multi-pass secure deletion (DoD 5220.22-M)
+- Encrypted key storage
+- Checksum verification on all transfers
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
-**From PyPI (recommended):**
 ```bash
 pip install secure-media-processor
 ```
 
-**With optional features:**
-```bash
-# GPU acceleration (NVIDIA/AMD/Apple/Intel)
-pip install secure-media-processor[gpu]
+### Basic Usage
 
+```python
+from secure_media_processor import Pipeline, TransferMode
+
+# Initialize secure pipeline
+pipeline = Pipeline(
+    encryption_key="~/.smp/keys/master.key",
+    audit_log="~/.smp/audit/"
+)
+
+# Add your cloud source
+pipeline.add_source('hospital', S3Connector(
+    bucket_name='patient-scans',
+    region='us-east-1'
+))
+
+# Secure download to local GPU workstation
+manifest = pipeline.secure_download(
+    source='hospital',
+    remote_path='mri-scans/patient-001/',
+    local_path='/secure/gpu-workspace/',
+    mode=TransferMode.ZERO_KNOWLEDGE  # Maximum security
+)
+
+# Verify data integrity
+assert pipeline.verify_integrity(manifest)
+
+# Process locally on your GPU (your code here)
+results = your_ml_model.process(manifest.destination)
+
+# Secure cleanup when done
+pipeline.secure_delete(manifest.destination)
+```
+
+## Who Is This For?
+
+- **Medical researchers** processing patient MRI/CT scans
+- **Healthcare organizations** meeting HIPAA requirements
+- **Research institutions** handling sensitive data
+- **Anyone** who needs to securely move data to GPU for processing
+
+## Architecture
+
+```
+secure-media-processor/
+├── src/
+│   ├── core/                    # Core pipeline functionality
+│   │   ├── secure_transfer.py   # Main transfer pipeline
+│   │   ├── encryption.py        # AES-256-GCM encryption
+│   │   ├── audit_logger.py      # Compliance logging
+│   │   └── key_exchange.py      # ECDH key exchange
+│   ├── connectors/              # Cloud storage connectors
+│   │   ├── s3_connector.py
+│   │   ├── google_drive_connector.py
+│   │   └── dropbox_connector.py
+│   └── cli.py                   # Command-line interface
+├── plugins/                     # Optional processing plugins
+│   └── smp_medical/             # Medical imaging plugin
+└── docs/                        # Documentation
+    ├── architecture/
+    ├── api/
+    └── examples/
+```
+
+## Plugin Architecture
+
+The core package focuses on **secure data transfer**. Domain-specific processing is handled by optional plugins:
+
+```bash
 # Medical imaging (DICOM, U-Net segmentation)
 pip install secure-media-processor[medical]
 
-# Everything
-pip install secure-media-processor[all]
+# Video processing (coming soon)
+pip install secure-media-processor[video]
 ```
 
-**From source:**
+Plugins process data **locally** after it has been securely transferred.
+
+## Documentation
+
+- **[Security Model](docs/architecture/SECURITY_MODEL.md)** — Threat model, encryption details
+- **[Data Flow](docs/architecture/DATA_FLOW.md)** — How data moves through the pipeline
+- **[Pipeline API](docs/api/PIPELINE_API.md)** — Core API reference
+- **[Examples](docs/examples/)** — Working code examples
+
+## Security Model
+
+| Stage | Protection |
+|-------|------------|
+| At rest (cloud) | AES-256-GCM encryption |
+| In transit | AES-256-GCM + TLS |
+| At rest (local) | Encrypted with master key |
+| Processing | Decrypted only in memory |
+| Cleanup | Multi-pass secure deletion |
+
+**Zero-Knowledge Transfer**: In this mode, data is encrypted at the source (e.g., hospital) using a shared key derived via ECDH. The cloud provider **never** has access to the plaintext or decryption keys.
+
+## Compliance
+
+### HIPAA
+- Audit logging with 6-year retention
+- Access controls (local-only decryption)
+- Encryption meets requirements
+
+### GDPR
+- Data minimization support
+- Right to erasure (secure deletion)
+- Complete audit trail
+
+## CLI Usage
+
 ```bash
-git clone https://github.com/Isaloum/Secure-Media-Processor.git
-cd Secure-Media-Processor
-pip install -e .
-```
+# Encrypt a file locally
+smp encrypt sensitive-data.dcm encrypted.bin
 
-**Configure credentials (for cloud features):**
-```bash
-cp .env.example .env
-# Edit .env with your cloud storage credentials
-```
+# Download from cloud (decrypts locally)
+smp download s3://bucket/path/file.enc ./local-file.dcm
 
-### Basic Usage
+# Secure delete
+smp delete --secure ./sensitive-data.dcm
 
-#### Encrypt and Upload to Cloud
-```bash
-# Encrypt a file
-smp encrypt my-photo.jpg encrypted-photo.bin
-
-# Upload to S3 (requires Pro license)
-smp upload encrypted-photo.bin --remote-key secure/photo.enc
-```
-
-#### Download and Decrypt
-```bash
-# Download from cloud
-smp download secure/photo.enc downloaded.bin
-
-# Decrypt the file
-smp decrypt downloaded.bin recovered-photo.jpg
-```
-
-#### GPU-Accelerated Image Processing
-```bash
-# Resize image with GPU acceleration
-smp resize photo.jpg resized.jpg --width 1920 --height 1080
-
-# Apply filters
-smp filter photo.jpg filtered.jpg --filter blur --intensity 1.5
-```
-
-#### System Information
-```bash
-# Check GPU availability and system info
+# View system info
 smp info
 ```
 
-## 📚 Documentation
+## Roadmap
 
-- **[Getting Started Guide](GETTING_STARTED.md)** - Step-by-step tutorial for beginners
-- **[Contributing Guidelines](CONTRIBUTING.md)** - How to contribute to this project
-- **[Security Policy](SECURITY.md)** - Security best practices and reporting vulnerabilities
+### Version 2.0 (Current Focus)
+- [x] Core secure transfer pipeline
+- [x] ECDH key exchange
+- [x] HIPAA-compliant audit logging
+- [x] Plugin architecture
+- [ ] Streaming transfer for large files
+- [ ] Azure Blob Storage connector
 
-## 🏗️ Architecture
+### Future
+- [ ] Docker containerization
+- [ ] REST API server
+- [ ] Web dashboard
+- [ ] Hardware Security Module (HSM) integration
 
-### Project Structure
-```
-Secure-Media-Processor/
-├── src/
-│   ├── connectors/          # Cloud storage connectors
-│   │   ├── base_connector.py       # Abstract base class
-│   │   ├── s3_connector.py         # AWS S3 implementation
-│   │   ├── google_drive_connector.py  # Google Drive implementation
-│   │   ├── dropbox_connector.py    # Dropbox implementation
-│   │   └── connector_manager.py    # Multi-connector management
-│   ├── encryption.py        # Encryption/decryption logic
-│   ├── gpu_processor.py     # GPU-accelerated media processing
-│   ├── cloud_storage.py     # Legacy cloud storage (S3)
-│   ├── config.py           # Configuration management
-│   └── cli.py              # Command-line interface
-├── tests/                  # Test suite
-├── main.py                 # Application entry point
-└── requirements.txt        # Python dependencies
-```
+## Contributing
 
-### Cloud Connector Design
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-The modular connector architecture allows seamless integration with multiple cloud providers:
+**Priority areas:**
+- Additional cloud connectors
+- Performance optimization
+- Security auditing
 
-```python
-from src.connectors import ConnectorManager, S3Connector, DropboxConnector
+## Security
 
-# Initialize connector manager
-manager = ConnectorManager()
+Security is the core mission. If you discover a vulnerability, please see our [Security Policy](SECURITY.md) for responsible disclosure.
 
-# Add connectors
-manager.add_connector('s3', S3Connector(
-    bucket_name='my-bucket',
-    region='us-east-1'
-))
-manager.add_connector('dropbox', DropboxConnector(
-    access_token='your-token'
-))
+## License
 
-# Connect all providers
-manager.connect_all()
-
-# Upload to active connector
-manager.upload_file('file.txt', 'remote/file.txt')
-
-# Upload to specific provider
-manager.upload_file('file.txt', 'file.txt', connector_name='dropbox')
-
-# Sync file across multiple clouds
-manager.sync_file_across_connectors(
-    'important.txt',
-    source_connector='s3',
-    target_connectors=['dropbox', 'gdrive']
-)
-```
-
-## 🧪 Testing & CI/CD
-
-### Test Suite
-
-The project includes comprehensive automated tests for all cloud connectors with 66% overall code coverage:
-
-```bash
-# Run all cloud connector tests
-pytest tests/test_dropbox_connector.py tests/test_s3_connector_new.py tests/test_google_drive_connector_new.py -v
-
-# Run with coverage reporting
-pytest tests/ --cov=src/connectors --cov-report=term-missing
-```
-
-**Coverage Metrics**:
-- S3 Connector: 87%
-- Google Drive Connector: 82%
-- Dropbox Connector: 65%
-- Overall: 66%
-
-### Testing Strategy
-
-All connector tests use **global mocking fixtures** for consistent, isolated testing:
-
-- **Dropbox**: `mock_dbx_global` fixture mocks `dropbox.Dropbox` class
-- **S3**: `mock_s3_client_global` and `mock_s3_resource_global` fixtures mock `boto3.client()` and `boto3.resource()`
-- **Google Drive**: `mock_gdrive_service_global` fixture mocks `googleapiclient.discovery.build()`
-
-This approach ensures:
-- No actual cloud API calls during testing
-- Fast test execution (all 45 tests run in ~1 second)
-- Predictable test behavior without external dependencies
-- Easy debugging with controlled mock responses
-
-### Continuous Integration
-
-Every push and pull request triggers automated testing via GitHub Actions:
-
-**Workflow**: [`.github/workflows/python-tests.yml`](.github/workflows/python-tests.yml)
-
-**Pipeline Steps**:
-1. **Environment Setup**: Python 3.11, install dependencies
-2. **Test Execution**: Run all connector tests with verbose output
-3. **Coverage Analysis**: Generate coverage reports (XML + terminal)
-4. **Coverage Upload**: Publish to Codecov with `connector-tests` flag
-
-**View CI Status**: All workflow runs are visible in the [Actions tab](https://github.com/Isaloum/Secure-Media-Processor/actions)
-
-### Adding New Connector Tests
-
-To add tests for a new connector:
-
-1. Create `tests/test_<connector>_connector.py`
-2. Add a global fixture using `autouse=True` and `scope="function"`
-3. Mock the SDK/API constructor using `monkeypatch.setattr()`
-4. Write tests using the global mock with `reset_mock()` between tests
-5. Update CI workflow to include your test file
-
-Example template:
-```python
-import pytest
-from unittest.mock import MagicMock
-
-@pytest.fixture(autouse=True)
-def mock_sdk_global(monkeypatch):
-    """Global mock for SDK client"""
-    mock = MagicMock()
-    monkeypatch.setattr('sdk_module.Client', lambda *args, **kwargs: mock)
-    yield mock
-    mock.reset_mock()
-
-def test_upload(mock_sdk_global):
-    connector = MyConnector()
-    connector.upload_file('test.txt', 'remote.txt')
-    assert mock_sdk_global.upload.called
-```
-
-## 🔒 Security Workflow
-
-1. **Local Encryption**: Files are encrypted on your machine using AES-256-GCM
-2. **Checksum Generation**: SHA-256 hash calculated for integrity verification
-3. **Secure Upload**: Encrypted data transmitted to cloud with TLS
-4. **Server-Side Encryption**: Additional encryption layer at cloud provider
-5. **Integrity Verification**: Checksum verified on download
-6. **Secure Decryption**: Files decrypted only on your local machine
-
-## 🗺️ Roadmap
-
-### Current Version (v1.0)
-- ✅ AES-256-GCM encryption
-- ✅ Multi-cloud connectors (S3, Google Drive, Dropbox)
-- ✅ GPU-accelerated image processing
-- ✅ Comprehensive CLI interface
-
-### Upcoming Features
-- 🔲 **Video Processing**: GPU-accelerated video encoding/transcoding
-- 🔲 **Azure Blob Storage**: Azure connector implementation
-- 🔲 **End-to-End Encryption**: Zero-knowledge cloud storage
-- 🔲 **Web Interface**: Browser-based UI for easier management
-- 🔲 **Automated Backups**: Scheduled backup across multiple clouds
-- 🔲 **File Versioning**: Track and restore previous file versions
-- 🔲 **Compression**: Intelligent compression before encryption
-- 🔲 **CI/CD Pipeline**: Automated testing and deployment
-- 🔲 **Docker Support**: Containerized deployment
-- 🔲 **API Server**: RESTful API for programmatic access
-
-## 🤝 Contributing
-
-We welcome contributions! Whether you're fixing bugs, improving documentation, or adding new features, your help makes this project better.
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 🔐 Security
-
-Security is our top priority. If you discover a security vulnerability, please see our [Security Policy](SECURITY.md) for responsible disclosure guidelines.
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with ❤️ for privacy-conscious users
-- Inspired by the need for secure, cross-platform media management
-- Special thanks to all contributors and the open-source community
-
-## 📞 Support & Contact
-
-- **Issues**: [GitHub Issues](https://github.com/Isaloum/Secure-Media-Processor/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Isaloum/Secure-Media-Processor/discussions)
-- **Documentation**: [Project Wiki](https://github.com/Isaloum/Secure-Media-Processor/wiki)
+MIT License — see [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-**⭐ If you find this project useful, please consider giving it a star! ⭐**
+**Secure Media Processor** — *Your data, your GPU, your control.*
 
-*Secure Media Processor - Your privacy, your control, your cloud.*
+Built for researchers who need security without compromise.
 
 </div>

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secure-media-processor"
-version = "1.1.0"
-description = "Privacy-focused media processing with GPU acceleration and multi-cloud storage integration"
+version = "2.0.0"
+description = "Secure data pipeline for transferring sensitive data from cloud to local GPU processing"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
