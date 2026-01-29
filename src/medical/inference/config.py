@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any, Optional
+
+import numpy as np
 
 
 class ModelType(Enum):
@@ -53,11 +55,8 @@ class ModelConfig:
 @dataclass
 class PredictionResult:
     """Result of model prediction."""
-    import numpy as np
-    from typing import Dict, Any, Optional
-
     # Probabilities for each class
-    probabilities: 'np.ndarray'
+    probabilities: np.ndarray
 
     # Predicted class index
     predicted_class: int
@@ -69,15 +68,15 @@ class PredictionResult:
     confidence: float
 
     # Raw model output
-    raw_output: 'np.ndarray'
+    raw_output: np.ndarray
 
     # Optional heatmap/attention map
-    heatmap: 'Optional[np.ndarray]' = None
+    heatmap: Optional[np.ndarray] = None
 
     # Additional metadata
-    metadata: 'Dict[str, Any]' = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> 'Dict[str, Any]':
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
             'predicted_class': self.predicted_class,
