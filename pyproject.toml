@@ -75,6 +75,21 @@ gpu = [
     "torch>=2.1.2",
     "torchvision>=0.16.2",
 ]
+medical = [
+    "pydicom>=2.4.0",
+    "nibabel>=5.2.0",
+    "scipy>=1.11.0",
+    "scikit-image>=0.22.0",
+]
+all = [
+    "torch>=2.1.2",
+    "torchvision>=0.16.2",
+    "pydicom>=2.4.0",
+    "nibabel>=5.2.0",
+    "scipy>=1.11.0",
+    "scikit-image>=0.22.0",
+    "onnxruntime>=1.16.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/Isaloum/Secure-Media-Processor"
@@ -87,8 +102,9 @@ Changelog = "https://github.com/Isaloum/Secure-Media-Processor/releases"
 secure-media-processor = "src.cli:cli"
 smp = "src.cli:cli"
 
-[tool.setuptools]
-packages = ["src", "src.connectors"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
 
 [tool.setuptools.package-data]
 src = ["py.typed"]

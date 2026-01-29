@@ -67,28 +67,31 @@ Secure Media Processor is a production-ready, enterprise-grade solution for secu
 
 ### Installation
 
-1. **Clone the repository**:
+**From PyPI (recommended):**
+```bash
+pip install secure-media-processor
+```
+
+**With optional features:**
+```bash
+# GPU acceleration (NVIDIA/AMD/Apple/Intel)
+pip install secure-media-processor[gpu]
+
+# Medical imaging (DICOM, U-Net segmentation)
+pip install secure-media-processor[medical]
+
+# Everything
+pip install secure-media-processor[all]
+```
+
+**From source:**
 ```bash
 git clone https://github.com/Isaloum/Secure-Media-Processor.git
 cd Secure-Media-Processor
+pip install -e .
 ```
 
-2. **Create a virtual environment**:
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. **Install dependencies**:
-```bash
-pip install -r requirements.txt
-
-# Optional: For GPU acceleration support (NVIDIA/AMD/Apple/Intel)
-pip install -r requirements-gpu.txt
-# Or install via: pip install -e .[gpu]
-```
-
-4. **Configure credentials**:
+**Configure credentials (for cloud features):**
 ```bash
 cp .env.example .env
 # Edit .env with your cloud storage credentials
@@ -99,34 +102,34 @@ cp .env.example .env
 #### Encrypt and Upload to Cloud
 ```bash
 # Encrypt a file
-python main.py encrypt my-photo.jpg encrypted-photo.bin
+smp encrypt my-photo.jpg encrypted-photo.bin
 
-# Upload to S3
-python main.py upload encrypted-photo.bin --remote-key secure/photo.enc
+# Upload to S3 (requires Pro license)
+smp upload encrypted-photo.bin --remote-key secure/photo.enc
 ```
 
 #### Download and Decrypt
 ```bash
 # Download from cloud
-python main.py download secure/photo.enc downloaded.bin
+smp download secure/photo.enc downloaded.bin
 
 # Decrypt the file
-python main.py decrypt downloaded.bin recovered-photo.jpg
+smp decrypt downloaded.bin recovered-photo.jpg
 ```
 
 #### GPU-Accelerated Image Processing
 ```bash
 # Resize image with GPU acceleration
-python main.py resize photo.jpg resized.jpg --width 1920 --height 1080
+smp resize photo.jpg resized.jpg --width 1920 --height 1080
 
 # Apply filters
-python main.py filter-image photo.jpg filtered.jpg --filter blur --intensity 1.5
+smp filter photo.jpg filtered.jpg --filter blur --intensity 1.5
 ```
 
 #### System Information
 ```bash
 # Check GPU availability and system info
-python main.py info
+smp info
 ```
 
 ## 📚 Documentation
