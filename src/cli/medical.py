@@ -572,6 +572,265 @@ def evaluate_segmentation(prediction_path: str, ground_truth_path: str, surface_
         raise click.Abort()
 
 
+@medical.command('process-study')
+@click.argument('remote_path')
+@click.option('--provider', type=click.Choice(['s3', 'google_drive', 'dropbox']),
+              default='s3', help='Cloud provider')
+@click.option('--bucket', help='S3 bucket or cloud folder')
+@click.option('--region', default='us-east-1', help='AWS region (for S3)')
+@click.option('--operations', '-o', multiple=True,
+              type=click.Choice(['load', 'anonymize', 'preprocess', 'segment', 'predict']),
+              default=['load', 'preprocess', 'segment', 'predict'],
+              help='Operations to perform')
+@click.option('--output', '-O', type=click.Path(), help='Output directory for results')
+@click.option('--user-id', default='cli-user', help='User ID for audit logging')
+@click.option('--model', type=click.Path(exists=True), help='Path to ML model')
+@click.option('--zero-knowledge', is_flag=True, help='Use zero-knowledge transfer mode')
+@click.option('--keep-data', is_flag=True, help='Do not securely delete data after processing')
+def process_study(remote_path: str, provider: str, bucket: str, region: str,
+                  operations: tuple, output: Optional[str], user_id: str,
+                  model: Optional[str], zero_knowledge: bool, keep_data: bool):
+    """
+    Process a medical imaging study from cloud storage.
+
+    This is the main command for secure medical imaging workflows.
+    Downloads encrypted data from cloud, processes locally on GPU,
+    runs cancer prediction, and securely cleans up.
+
+    Example:
+        smp medical process-study mri-scans/patient-001/ --bucket hospital-data
+    """
+    from src.medical import MedicalPipeline
+
+    click.echo(f"{Fore.CYAN}Secure Medical Imaging Pipeline{Style.RESET_ALL}\n")
+
+    if not bucket:
+        click.echo(f"{Fore.RED}Error: --bucket is required{Style.RESET_ALL}")
+        raise click.Abort()
+
+    try:
+        # Initialize pipeline
+        click.echo(f"{Fore.YELLOW}Initializing secure pipeline...{Style.RESET_ALL}")
+        pipeline = MedicalPipeline(
+            cloud_config={
+                'provider': provider,
+                'bucket': bucket,
+                'region': region
+            },
+            user_id=user_id,
+            model_path=model,
+            auto_anonymize='anonymize' in operations,
+            auto_cleanup=not keep_data
+        )
+
+        # Process study
+        click.echo(f"{Fore.YELLOW}Processing study: {remote_path}{Style.RESET_ALL}")
+        click.echo(f"  Operations: {', '.join(operations)}")
+        click.echo(f"  Transfer mode: {'zero-knowledge' if zero_knowledge else 'standard'}")
+        click.echo()
+
+        download_mode = 'zero_knowledge' if zero_knowledge else 'standard'
+
+        results = pipeline.process_study(
+            remote_path=remote_path,
+            operations=list(operations),
+            download_mode=download_mode,
+            output_path=output
+        )
+
+        # Display results
+        click.echo(f"\n{Fore.GREEN}{'=' * 50}{Style.RESET_ALL}")
+        click.echo(f"{Fore.GREEN}PROCESSING COMPLETE{Style.RESET_ALL}")
+        click.echo(f"{Fore.GREEN}{'=' * 50}{Style.RESET_ALL}\n")
+
+        click.echo(f"{Fore.YELLOW}Study ID:{Style.RESET_ALL} {results.study_id}")
+        click.echo(f"{Fore.YELLOW}Operations:{Style.RESET_ALL} {', '.join(results.operations_performed)}")
+        click.echo(f"{Fore.YELLOW}Processing Time:{Style.RESET_ALL} {results.processing_time_seconds:.2f}s")
+
+        if results.cancer_probability is not None:
+            prob = results.cancer_probability
+            pred = results.cancer_prediction
+            color = Fore.RED if pred == 'positive' else Fore.GREEN
+
+            click.echo(f"\n{Fore.YELLOW}Cancer Prediction:{Style.RESET_ALL}")
+            click.echo(f"  Probability: {color}{prob:.2%}{Style.RESET_ALL}")
+            click.echo(f"  Prediction: {color}{pred}{Style.RESET_ALL}")
+            if results.confidence_score:
+                click.echo(f"  Confidence: {results.confidence_score:.2%}")
+
+        if output:
+            click.echo(f"\n{Fore.YELLOW}Results saved to:{Style.RESET_ALL} {output}")
+
+        # Cleanup status
+        if not keep_data:
+            click.echo(f"\n{Fore.GREEN}Sensitive data securely deleted{Style.RESET_ALL}")
+        else:
+            click.echo(f"\n{Fore.YELLOW}Data kept at:{Style.RESET_ALL} {results.local_paths}")
+
+        # Audit info
+        audit = pipeline.get_audit_summary()
+        click.echo(f"\n{Fore.YELLOW}Audit Log:{Style.RESET_ALL}")
+        click.echo(f"  Entries: {audit.get('total_entries', 'N/A')}")
+        click.echo(f"  Integrity: {'Verified' if audit.get('integrity_verified') else 'N/A'}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
+@medical.command('secure-download')
+@click.argument('remote_path')
+@click.argument('local_path', type=click.Path())
+@click.option('--provider', type=click.Choice(['s3', 'google_drive', 'dropbox']),
+              default='s3', help='Cloud provider')
+@click.option('--bucket', required=True, help='S3 bucket or cloud folder')
+@click.option('--region', default='us-east-1', help='AWS region (for S3)')
+@click.option('--user-id', default='cli-user', help='User ID for audit logging')
+@click.option('--zero-knowledge', is_flag=True, help='Use zero-knowledge transfer mode')
+def secure_download(remote_path: str, local_path: str, provider: str,
+                    bucket: str, region: str, user_id: str, zero_knowledge: bool):
+    """
+    Securely download medical data from cloud storage.
+
+    Downloads encrypted medical data and decrypts it locally.
+    Creates audit log entry for HIPAA compliance.
+
+    Example:
+        smp medical secure-download mri-scans/study-001/ ./local-data/ --bucket hospital-data
+    """
+    from src.core import SecureTransferPipeline, MediaEncryptor, AuditLogger, TransferMode
+    from src.connectors import S3Connector, GoogleDriveConnector, DropboxConnector
+
+    click.echo(f"{Fore.CYAN}Secure Download{Style.RESET_ALL}\n")
+
+    try:
+        # Initialize components
+        encryption = MediaEncryptor("~/.smp/keys/master.key")
+        audit = AuditLogger(
+            log_path="~/.smp/audit/",
+            user_id=user_id
+        )
+
+        pipeline = SecureTransferPipeline(
+            encryption=encryption,
+            audit_logger=audit
+        )
+
+        # Add connector
+        if provider == 's3':
+            connector = S3Connector(bucket_name=bucket, region=region)
+        elif provider == 'google_drive':
+            connector = GoogleDriveConnector(folder_id=bucket)
+        else:
+            connector = DropboxConnector()
+
+        pipeline.add_source('cloud', connector)
+
+        # Download
+        mode = TransferMode.ZERO_KNOWLEDGE if zero_knowledge else TransferMode.STANDARD
+        click.echo(f"Downloading: {remote_path}")
+        click.echo(f"Mode: {'zero-knowledge' if zero_knowledge else 'standard'}")
+
+        manifest = pipeline.secure_download(
+            source_name='cloud',
+            remote_path=remote_path,
+            local_path=local_path,
+            mode=mode
+        )
+
+        click.echo(f"\n{Fore.GREEN}Download Complete{Style.RESET_ALL}")
+        click.echo(f"  Files: {manifest.file_count}")
+        click.echo(f"  Bytes: {manifest.total_bytes:,}")
+        click.echo(f"  Destination: {manifest.destination}")
+        click.echo(f"  Integrity: {'Verified' if pipeline.verify_integrity(manifest) else 'FAILED'}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
+@medical.command('secure-delete')
+@click.argument('path', type=click.Path(exists=True))
+@click.option('--recursive', '-r', is_flag=True, help='Delete directory recursively')
+@click.option('--passes', type=int, default=3, help='Number of overwrite passes')
+@click.confirmation_option(prompt='Are you sure you want to securely delete this data?')
+def secure_delete(path: str, recursive: bool, passes: int):
+    """
+    Securely delete sensitive medical data.
+
+    Overwrites data multiple times before deletion to prevent recovery.
+    Uses DoD 5220.22-M secure deletion standard.
+
+    Example:
+        smp medical secure-delete ./patient-data/ -r
+    """
+    from src.core import SecureTransferPipeline
+
+    click.echo(f"{Fore.CYAN}Secure Deletion{Style.RESET_ALL}\n")
+
+    try:
+        pipeline = SecureTransferPipeline(secure_delete_passes=passes)
+
+        click.echo(f"Deleting: {path}")
+        click.echo(f"Passes: {passes}")
+        click.echo(f"Recursive: {recursive}")
+
+        pipeline.secure_delete(path, recursive=recursive)
+
+        click.echo(f"\n{Fore.GREEN}Secure deletion complete{Style.RESET_ALL}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
+@medical.command('audit-export')
+@click.argument('output_path', type=click.Path())
+@click.option('--start-date', help='Start date filter (YYYY-MM-DD)')
+@click.option('--end-date', help='End date filter (YYYY-MM-DD)')
+@click.option('--user-id', help='Filter by user ID')
+def audit_export(output_path: str, start_date: Optional[str], end_date: Optional[str],
+                 user_id: Optional[str]):
+    """
+    Export audit log for HIPAA compliance review.
+
+    Exports all medical data operations for compliance auditing.
+
+    Example:
+        smp medical audit-export ./audit_2024.json --start-date 2024-01-01
+    """
+    from src.core import AuditLogger
+
+    click.echo(f"{Fore.CYAN}Exporting Audit Log{Style.RESET_ALL}\n")
+
+    try:
+        audit = AuditLogger(
+            log_path="~/.smp/audit/",
+            user_id=user_id or "audit-export"
+        )
+
+        count = audit.export_logs(
+            output_path=output_path,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        # Verify integrity
+        integrity_ok = audit.verify_integrity()
+
+        click.echo(f"{Fore.GREEN}Export Complete{Style.RESET_ALL}")
+        click.echo(f"  Entries exported: {count}")
+        click.echo(f"  Output: {output_path}")
+        click.echo(f"  Integrity verified: {'Yes' if integrity_ok else 'NO - POSSIBLE TAMPERING'}")
+
+        if not integrity_ok:
+            click.echo(f"\n{Fore.RED}WARNING: Audit log integrity check failed!{Style.RESET_ALL}")
+
+    except Exception as e:
+        click.echo(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        raise click.Abort()
+
+
 @medical.command('info')
 def medical_info():
     """Display medical imaging capabilities and dependencies."""
