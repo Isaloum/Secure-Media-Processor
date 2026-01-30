@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secure-media-processor"
-version = "2.0.0"
+version = "2.2.0"
 description = "Secure data pipeline for transferring sensitive data from cloud to local GPU processing"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -81,6 +81,9 @@ medical = [
     "scipy>=1.11.0",
     "scikit-image>=0.22.0",
 ]
+azure = [
+    "azure-storage-blob>=12.19.0",
+]
 all = [
     "torch>=2.1.2",
     "torchvision>=0.16.2",
@@ -89,6 +92,7 @@ all = [
     "scipy>=1.11.0",
     "scikit-image>=0.22.0",
     "onnxruntime>=1.16.0",
+    "azure-storage-blob>=12.19.0",
 ]
 
 [project.urls]
@@ -191,5 +195,6 @@ module = [
     "torch.*",
     "torchvision.*",
     "cv2.*",
+    "azure.*",
 ]
 ignore_missing_imports = true

@@ -1,5 +1,6 @@
 # Secure Media Processor - GPU Version (NVIDIA CUDA)
 # Requires nvidia-container-toolkit on host
+# Supports secure data pipeline with GPU acceleration
 
 # ============================================================================
 # Stage 1: Builder
@@ -10,6 +11,7 @@ FROM nvidia/cuda:12.1-runtime-ubuntu22.04 as builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-venv \
+    python3.11-dev \
     python3-pip \
     gcc \
     g++ \
@@ -21,20 +23,18 @@ WORKDIR /build
 RUN python3.11 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-COPY requirements-gpu.txt* .
+# Copy package files
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
 
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install package with all extras
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir ".[all]"
 
-# Install GPU dependencies (PyTorch with CUDA)
+# Install PyTorch with CUDA support
 RUN pip install --no-cache-dir \
     torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 || \
     pip install --no-cache-dir torch torchvision torchaudio
-
-# Install optional medical imaging dependencies
-RUN pip install --no-cache-dir pydicom nibabel scipy scikit-image || true
 
 # ============================================================================
 # Stage 2: Runtime
@@ -46,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-venv \
     libgomp1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean \
     && ln -s /usr/bin/python3.11 /usr/bin/python
@@ -61,21 +63,23 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY --chown=smp:smp src/ ./src/
-COPY --chown=smp:smp main.py .
-COPY --chown=smp:smp scripts/ ./scripts/
+COPY --chown=smp:smp pyproject.toml README.md ./
+COPY --chown=smp:smp docs/ ./docs/
+COPY --chown=smp:smp plugins/ ./plugins/
 
 # Create directories with secure permissions
-RUN mkdir -p /app/keys /app/media_storage /app/temp && \
+RUN mkdir -p /app/keys /app/data/input /app/data/output /app/data/temp && \
     chown -R smp:smp /app && \
-    chmod 700 /app/keys /app/temp
+    chmod 700 /app/keys /app/data/temp
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     GPU_ENABLED=true \
-    TEMP_PATH=/app/temp \
-    LOCAL_STORAGE_PATH=/app/media_storage \
-    MASTER_KEY_PATH=/app/keys/master.key \
+    SMP_INPUT_DIR=/app/data/input \
+    SMP_OUTPUT_DIR=/app/data/output \
+    SMP_TEMP_DIR=/app/data/temp \
+    SMP_KEYS_DIR=/app/keys \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
@@ -84,8 +88,8 @@ USER smp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from src.encryption import MediaEncryptor; print('OK')" || exit 1
+    CMD python -c "from src.core import SecureTransferPipeline; import torch; print(f'GPU: {torch.cuda.is_available()}')" || exit 1
 
-# Default command: show help
-ENTRYPOINT ["python", "main.py"]
+# Use the installed CLI entry point
+ENTRYPOINT ["smp"]
 CMD ["--help"]

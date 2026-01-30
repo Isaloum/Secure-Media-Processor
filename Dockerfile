@@ -1,5 +1,6 @@
 # Secure Media Processor - CPU Version
-# Multi-stage build for smaller final image
+# Multi-stage build for optimized production images
+# Supports secure data pipeline for cloud-to-GPU transfers
 
 # ============================================================================
 # Stage 1: Builder
@@ -18,13 +19,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Copy package files
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
 
-# Install optional medical imaging dependencies
-RUN pip install --no-cache-dir pydicom nibabel scipy scikit-image || true
+# Install package with medical and azure extras
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir ".[medical,azure]"
 
 # ============================================================================
 # Stage 2: Runtime
@@ -39,6 +40,8 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
@@ -48,29 +51,31 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY --chown=smp:smp src/ ./src/
-COPY --chown=smp:smp main.py .
-COPY --chown=smp:smp scripts/ ./scripts/
+COPY --chown=smp:smp pyproject.toml README.md ./
+COPY --chown=smp:smp docs/ ./docs/
+COPY --chown=smp:smp plugins/ ./plugins/
 
 # Create directories with secure permissions
-RUN mkdir -p /app/keys /app/media_storage /app/temp && \
+RUN mkdir -p /app/keys /app/data/input /app/data/output /app/data/temp && \
     chown -R smp:smp /app && \
-    chmod 700 /app/keys /app/temp
+    chmod 700 /app/keys /app/data/temp
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     GPU_ENABLED=false \
-    TEMP_PATH=/app/temp \
-    LOCAL_STORAGE_PATH=/app/media_storage \
-    MASTER_KEY_PATH=/app/keys/master.key
+    SMP_INPUT_DIR=/app/data/input \
+    SMP_OUTPUT_DIR=/app/data/output \
+    SMP_TEMP_DIR=/app/data/temp \
+    SMP_KEYS_DIR=/app/keys
 
 # Switch to non-root user
 USER smp
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from src.encryption import MediaEncryptor; print('OK')" || exit 1
+    CMD python -c "from src.core import SecureTransferPipeline; print('OK')" || exit 1
 
-# Default command: show help
-ENTRYPOINT ["python", "main.py"]
+# Use the installed CLI entry point
+ENTRYPOINT ["smp"]
 CMD ["--help"]
