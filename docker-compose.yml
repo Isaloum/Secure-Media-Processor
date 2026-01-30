@@ -1,8 +1,11 @@
 # Secure Media Processor - Docker Compose Configuration
+# Secure data pipeline for cloud-to-GPU transfers
+#
 # Usage:
-#   CPU:  docker-compose up smp
-#   GPU:  docker-compose up smp-gpu
-#   All:  docker-compose up
+#   CPU:       docker-compose up smp
+#   GPU:       docker-compose up smp-gpu
+#   Medical:   docker-compose up smp-medical
+#   All:       docker-compose up
 
 version: '3.8'
 
@@ -19,11 +22,9 @@ services:
     volumes:
       # Mount directories for data persistence
       - ./data/keys:/app/keys:rw
-      - ./data/media:/app/media_storage:rw
-      - ./data/temp:/app/temp:rw
-      # Mount input/output directories (customize as needed)
-      - ./input:/input:ro
-      - ./output:/output:rw
+      - ./data/input:/app/data/input:ro
+      - ./data/output:/app/data/output:rw
+      - ./data/temp:/app/data/temp:rw
     environment:
       # AWS credentials (optional)
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
@@ -33,12 +34,17 @@ services:
       # GCP credentials (optional)
       - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME:-}
+      # Azure credentials (optional)
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING:-}
+      - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT:-}
+      - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY:-}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME:-}
+      # Dropbox credentials (optional)
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN:-}
       # Processing settings
       - GPU_ENABLED=false
       - BATCH_SIZE=${BATCH_SIZE:-32}
       - MAX_WORKERS=${MAX_WORKERS:-4}
-    # Override command for interactive use
-    # command: ["encrypt", "/input/file.jpg", "/output/file.enc"]
     stdin_open: true
     tty: true
     restart: "no"
@@ -54,10 +60,9 @@ services:
     container_name: smp-gpu
     volumes:
       - ./data/keys:/app/keys:rw
-      - ./data/media:/app/media_storage:rw
-      - ./data/temp:/app/temp:rw
-      - ./input:/input:ro
-      - ./output:/output:rw
+      - ./data/input:/app/data/input:ro
+      - ./data/output:/app/data/output:rw
+      - ./data/temp:/app/data/temp:rw
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
@@ -65,6 +70,11 @@ services:
       - AWS_BUCKET_NAME=${AWS_BUCKET_NAME:-}
       - GCP_PROJECT_ID=${GCP_PROJECT_ID:-}
       - GCP_BUCKET_NAME=${GCP_BUCKET_NAME:-}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING:-}
+      - AZURE_STORAGE_ACCOUNT=${AZURE_STORAGE_ACCOUNT:-}
+      - AZURE_STORAGE_KEY=${AZURE_STORAGE_KEY:-}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME:-}
+      - DROPBOX_ACCESS_TOKEN=${DROPBOX_ACCESS_TOKEN:-}
       - GPU_ENABLED=true
       - BATCH_SIZE=${BATCH_SIZE:-32}
       - MAX_WORKERS=${MAX_WORKERS:-4}
@@ -81,7 +91,49 @@ services:
     restart: "no"
 
   # ==========================================================================
-  # Development Version (mounts source code)
+  # Medical Processing Version (with DICOM support)
+  # ==========================================================================
+  smp-medical:
+    build:
+      context: .
+      dockerfile: Dockerfile.gpu
+    image: secure-media-processor:medical
+    container_name: smp-medical
+    volumes:
+      - ./data/keys:/app/keys:rw
+      - ./data/input:/app/data/input:ro
+      - ./data/output:/app/data/output:rw
+      - ./data/temp:/app/data/temp:rw
+      - ./data/studies:/app/data/studies:rw
+      - ./data/audit:/app/data/audit:rw
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME:-}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING:-}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME:-}
+      - GPU_ENABLED=true
+      - BATCH_SIZE=${BATCH_SIZE:-16}
+      - MAX_WORKERS=${MAX_WORKERS:-2}
+      - NVIDIA_VISIBLE_DEVICES=all
+      # HIPAA compliance settings
+      - AUDIT_LOG_PATH=/app/data/audit
+      - SECURE_DELETE=true
+      - ENCRYPTION_ENABLED=true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    stdin_open: true
+    tty: true
+    restart: "no"
+
+  # ==========================================================================
+  # Development Version (mounts source code for live editing)
   # ==========================================================================
   smp-dev:
     build:
@@ -92,20 +144,43 @@ services:
     volumes:
       # Mount source for live development
       - ./src:/app/src:ro
-      - ./main.py:/app/main.py:ro
       - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./docs:/app/docs:ro
+      - ./plugins:/app/plugins:ro
       # Data directories
       - ./data/keys:/app/keys:rw
-      - ./data/media:/app/media_storage:rw
-      - ./data/temp:/app/temp:rw
-      - ./input:/input:ro
-      - ./output:/output:rw
+      - ./data/input:/app/data/input:ro
+      - ./data/output:/app/data/output:rw
+      - ./data/temp:/app/data/temp:rw
     environment:
       - GPU_ENABLED=false
-      - PYTHONDONTWRITEBYTECODE=0  # Allow bytecode for faster dev
+      - PYTHONDONTWRITEBYTECODE=0
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AZURE_STORAGE_CONNECTION_STRING=${AZURE_STORAGE_CONNECTION_STRING:-}
+      - AZURE_CONTAINER_NAME=${AZURE_CONTAINER_NAME:-}
     command: ["--help"]
     stdin_open: true
     tty: true
+
+  # ==========================================================================
+  # Test Runner
+  # ==========================================================================
+  smp-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: secure-media-processor:test
+    container_name: smp-test
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+    environment:
+      - PYTHONDONTWRITEBYTECODE=0
+    entrypoint: ["pytest"]
+    command: ["-v", "--tb=short"]
 
 # ==========================================================================
 # Volumes for data persistence
@@ -113,7 +188,13 @@ services:
 volumes:
   keys:
     driver: local
-  media:
+  input:
+    driver: local
+  output:
     driver: local
   temp:
+    driver: local
+  studies:
+    driver: local
+  audit:
     driver: local
