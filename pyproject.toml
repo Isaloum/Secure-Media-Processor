@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secure-media-processor"
-version = "2.2.0"
+version = "2.3.0"
 description = "Secure data pipeline for transferring sensitive data from cloud to local GPU processing"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -22,10 +22,14 @@ keywords = [
     "aws-s3",
     "google-drive",
     "dropbox",
+    "azure-blob",
+    "onedrive",
     "gpu-acceleration",
     "media-processing",
     "privacy",
-    "security"
+    "security",
+    "hipaa",
+    "medical-imaging"
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -70,6 +74,9 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.0.0",
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autobuild>=2024.0.0",
 ]
 gpu = [
     "torch>=2.1.2",
@@ -84,6 +91,9 @@ medical = [
 azure = [
     "azure-storage-blob>=12.19.0",
 ]
+onedrive = [
+    "msal>=1.24.0",
+]
 all = [
     "torch>=2.1.2",
     "torchvision>=0.16.2",
@@ -93,6 +103,7 @@ all = [
     "scikit-image>=0.22.0",
     "onnxruntime>=1.16.0",
     "azure-storage-blob>=12.19.0",
+    "msal>=1.24.0",
 ]
 
 [project.urls]
@@ -196,5 +207,6 @@ module = [
     "torchvision.*",
     "cv2.*",
     "azure.*",
+    "msal.*",
 ]
 ignore_missing_imports = true
