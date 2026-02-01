@@ -52,8 +52,6 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application code
 COPY --chown=smp:smp src/ ./src/
 COPY --chown=smp:smp pyproject.toml README.md ./
-COPY --chown=smp:smp docs/ ./docs/
-COPY --chown=smp:smp plugins/ ./plugins/
 
 # Create directories with secure permissions
 RUN mkdir -p /app/keys /app/data/input /app/data/output /app/data/temp && \
