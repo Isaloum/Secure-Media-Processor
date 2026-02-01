@@ -1,7 +1,7 @@
 """Cloud storage connectors module.
 
 This module provides a unified interface for connecting to various cloud storage
-providers including AWS S3, Google Drive, Dropbox, and Azure Blob Storage.
+providers including AWS S3, Google Drive, Dropbox, Azure Blob Storage, and OneDrive.
 
 Example:
     Basic usage with a single connector:
@@ -23,6 +23,18 @@ Example:
     ... )
     >>> connector.connect()
     >>> result = connector.upload_file('scan.dcm', 'studies/scan.dcm')
+
+    Using OneDrive:
+
+    >>> from src.connectors import OneDriveConnector
+    >>>
+    >>> connector = OneDriveConnector(
+    ...     client_id="your-app-id",
+    ...     client_secret="your-secret",
+    ...     tenant_id="your-tenant-id"
+    ... )
+    >>> connector.connect()
+    >>> result = connector.upload_file('scan.dcm', 'medical/scans/scan.dcm')
 
     Using the connector manager:
 
@@ -46,6 +58,7 @@ from .base_connector import CloudConnector
 from .s3_connector import S3Connector
 from .google_drive_connector import GoogleDriveConnector
 from .dropbox_connector import DropboxConnector
+from .onedrive_connector import OneDriveConnector
 from .connector_manager import ConnectorManager
 
 # Azure connector is optional (requires azure-storage-blob)
@@ -62,10 +75,11 @@ __all__ = [
     'S3Connector',
     'GoogleDriveConnector',
     'DropboxConnector',
+    'OneDriveConnector',
     'AzureBlobConnector',
     'ConnectorManager',
     'AZURE_AVAILABLE',
 ]
 
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
