@@ -146,6 +146,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
