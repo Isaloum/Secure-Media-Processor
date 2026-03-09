@@ -1,2 +1,4 @@
 node_modules
 Library/
+.ollama/
+Library/
